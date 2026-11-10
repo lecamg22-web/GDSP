@@ -116,15 +116,19 @@ test('persistance: une base vide reçoit la démo, une base existante reste inta
   assert.equal(await seedIfEmpty(existing),false);
   assert.deepEqual((await existing.listEvents()).map(e=>e.slug),['reel']);
 });
-test('thème vintage: appliqué au SSR et à l’interface applicative',async()=>{
+test('thème vintage premium: appliqué au SSR et à l’interface applicative',async()=>{
   const app=createFrontendApp({fetchJson:async url=>url.endsWith('/api/stats')
     ?{events:0,races:0,drivers:0}:[]});
   const home=await http(app,'GET','/');
-  assert.match(home.body,/--ink:#102a32/);
-  assert.match(home.body,/background:#e9e0cb/);
-  assert.match(home.body,/La piste, entre gentlemen/);
+  assert.match(home.body,/href="\/theme\.css"/);
+  assert.match(home.body,/class="hero"/);
+  assert.match(home.body,/class="stats-grid"/);
+  assert.match(home.body,/La piste,/);
+  const css=fs.readFileSync(path.join(__dirname,'..','frontend','public','theme.css'),'utf8');
+  assert.match(css,/--ink: #102a32/);
+  assert.match(css,/--page: #e9e0cb/);
   const html=fs.readFileSync(path.join(__dirname,'..','frontend','public','index.html'),'utf8');
-  assert.match(html,/--gold:#cd9a42/);
+  assert.match(html,/class="app-hero"/);
   assert.doesNotMatch(html,/color-scheme:dark/);
 });
 async function http(app,method,url,body,headers={}){
