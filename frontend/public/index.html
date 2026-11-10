@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GDSP — Gentleman Drivers Project</title>
+<meta name="description" content="Classements, résultats et statistiques des championnats Assetto Corsa historiques GDSP.">
+<style>
+:root{color-scheme:dark}body{font-family:system-ui,sans-serif;background:#111;color:#eee;margin:0}
+header,main{max-width:1000px;margin:auto;padding:1rem}a{color:#e8c15a}nav button{margin:.2rem;padding:.45rem .8rem}
+table{border-collapse:collapse;width:100%}td,th{border:1px solid #444;padding:.35rem .6rem;text-align:left}
+section[hidden]{display:none}.card{border:1px solid #333;padding:1rem;margin:.5rem 0}
+</style>
+</head>
+<body>
+<header><strong>Gentleman Drivers Project</strong> — simracing historique</header>
+<main id="app">
+  <h1>Gentleman Drivers Project</h1>
+  <p>Championnats et opens Assetto Corsa vintage. Toute donnée absente est affichée « à confirmer ».</p>
+  <nav id="tabs" aria-label="Onglets événement">
+    <button data-tab="infos">Accueil &amp; Infos</button><button data-tab="standings">Classements</button>
+    <button data-tab="results">Résultats</button><button data-tab="circuit" id="tab-circuit" hidden>Circuit</button>
+    <button data-tab="drivers">Pilotes</button>
+  </nav>
+  <section data-panel="infos"></section><section data-panel="standings" hidden></section>
+  <section data-panel="results" hidden></section><section data-panel="circuit" hidden></section>
+  <section data-panel="drivers" hidden></section>
+  <section id="admin">
+    <h2>Administration</h2>
+    <form id="login"><input name="username" placeholder="Utilisateur" required><input name="password" type="password" placeholder="Mot de passe" required><button>Connexion</button></form>
+    <div id="admin-body" hidden>
+      <nav id="atabs" aria-label="Onglets administration">
+        <button data-atab="imports">Imports</button><button data-atab="manches">Manches</button>
+        <button data-atab="commission">Commission</button><button data-atab="pilotes">Pilotes</button>
+        <button data-atab="donnees">Données</button><button data-atab="evenements">Événements</button>
+        <button data-atab="serveurs">Serveurs AH</button><button data-atab="circuits">Circuits</button>
+        <button data-atab="global">Global</button>
+      </nav>
+      <section data-apanel="imports"></section><section data-apanel="manches" hidden></section>
+      <section data-apanel="commission" hidden></section><section data-apanel="pilotes" hidden></section>
+      <section data-apanel="donnees" hidden></section><section data-apanel="evenements" hidden></section>
+      <section data-apanel="serveurs" hidden></section>
+      <section data-apanel="circuits">
+        <form id="drive-import"><input name="folderUrl" placeholder="URL dossier Google Drive partagé" size="50"><button>Aperçu du circuit Drive</button></form>
+        <button id="drive-save" type="button">Enregistrer cette fiche dans l'événement courant</button>
+        <div id="drive-preview"></div>
+      </section>
+      <section data-apanel="global" hidden></section>
+      <p id="admin-status" role="status"></p>
+    </div>
+  </section>
+</main>
+<script src="/site.js" defer></script>
+</body>
+</html>

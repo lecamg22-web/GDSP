@@ -1,0 +1,15 @@
+{
+  "name": "gentleman-drivers-project",
+  "version": "1.0.0",
+  "private": true,
+  "description": "GDSP — portail de classements Assetto Corsa historique",
+  "type": "commonjs",
+  "engines": { "node": ">=20" },
+  "dependencies": { "express": "^4.19.2" },
+  "scripts": {
+    "start": "node backend/server.js",
+    "start:backend": "node backend/server.js",
+    "start:frontend": "node frontend/server.js",
+    "test": "node --test tests/"
+  }
+}
