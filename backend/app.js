@@ -2,15 +2,26 @@
 const express=require('express');
 const {MemoryStore,seedEvents}=require('./lib/store');
 const {computeStandings}=require('./lib/standings');
+const {applyPenalties}=require('./lib/penalties');
 const {computeGlobalRatings}=require('./lib/globalRating');
-const {importPayloads}=require('./lib/importResult');
+const {importPayloads,normalizeSession,mergeSessions,sessionKey}=require('./lib/importResult');
 const {checkCredentials,issueToken,requireAdmin}=require('./lib/auth');
 const {anonymize,assertNoGuid}=require('./lib/anonymize');
 const {buildCircuitRound}=require('./lib/circuit');
 const {listDriveFolder,pickCircuitFiles,downloadUrl,fetchBuffer,fetchText}=require('../tools/lib/drive');
 const {scanServer}=require('./lib/ahServers');
 const EVENT_KINDS=['championship','archive','open'];
-function blankData(){ return {sessions:[],penMap:{},manualDrivers:{},customCalendar:{},eventInfo:{},posterImage:null,galleryImages:[],circuitRounds:[],serversAH:[]}; }
+function blankData(){ return {sessions:[],pendingSessions:[],penMap:{},manualDrivers:{},customCalendar:{},eventInfo:{},posterImage:null,galleryImages:[],circuitRounds:[],serversAH:[]}; }
+function publicEvent(event){
+  const {pendingSessions,...publishedData}=event.data||{}; // drafts stay private to the Commission
+  return {...event,data:publishedData};
+}
+function stagePayloads(event,payloads){
+  const published=event.data.sessions||[], pending=event.data.pendingSessions||[];
+  const result=importPayloads([...published,...pending],payloads);
+  event.data.pendingSessions=[...pending,...result.added];
+  return {added:result.added.length,duplicates:result.duplicates.length};
+}
 function validateEvent(body){
   if(!body||!/^[a-z0-9-]+$/.test(body.slug||'')) throw Object.assign(new Error('slug invalide (a-z, 0-9, -)'),{status:400});
   if(!EVENT_KINDS.includes(body.kind)) throw Object.assign(new Error('kind invalide'),{status:400});
@@ -26,7 +37,7 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
   app.get('/api/events',async(req,res,next)=>{ try{ const events=await store.listEvents();
     res.json(events.map(({slug,name,kind,points_config})=>({slug,name,kind,points_config}))); }catch(e){next(e);} });
   app.get('/api/events/:slug',async(req,res,next)=>{ try{ const e=await store.getEvent(req.params.slug);
-    if(!e) return res.status(404).json({error:'Événement introuvable'}); assertNoGuid(e); res.json(e); }catch(e){next(e);} });
+    if(!e) return res.status(404).json({error:'Événement introuvable'}); assertNoGuid(e); res.json(publicEvent(e)); }catch(e){next(e);} });
   app.get('/api/events/:slug/standings',async(req,res,next)=>{ try{ const e=await store.getEvent(req.params.slug);
     if(!e) return res.status(404).json({error:'Événement introuvable'}); res.json(computeStandings(e)); }catch(e){next(e);} });
   app.get('/api/events/:slug/drivers/:driverId',async(req,res,next)=>{ try{ const e=await store.getEvent(req.params.slug);
@@ -54,15 +65,44 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
   app.post('/api/admin/events/:slug/import',requireAdmin,async(req,res,next)=>{ try{
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
     const payloads=req.body.payloads||req.body.payload||req.body;
-    const result=importPayloads(e.data.sessions||[], payloads);
-    e.data.sessions=result.sessions; await store.saveEvent(e);
-    res.json({added:result.added.length, duplicates:result.duplicates.length}); }catch(e){next(e);} });
+    const result=stagePayloads(e,payloads); await store.saveEvent(e);
+    res.json(result); }catch(e){next(e);} });
   app.post('/api/admin/events/:slug/import/assettohosting',requireAdmin,async(req,res,next)=>{ try{
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
     const servers=req.body.servers||[]; let all=[];
     for(const s of servers) all=all.concat(await scanServer(s, opts));
-    const result=importPayloads(e.data.sessions||[], all); e.data.sessions=result.sessions; await store.saveEvent(e);
-    res.json({scanned:all.length, added:result.added.length, duplicates:result.duplicates.length}); }catch(e){next(e);} });
+    const result=stagePayloads(e,all); await store.saveEvent(e);
+    res.json({scanned:all.length,...result}); }catch(e){next(e);} });
+  // Commission: imported sessions remain private drafts until explicitly published.
+  app.get('/api/admin/events/:slug/commission',requireAdmin,async(req,res,next)=>{ try{
+    const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
+    res.json({pendingSessions:e.data.pendingSessions||[]}); }catch(e){next(e);} });
+  app.put('/api/admin/events/:slug/commission/:index',requireAdmin,async(req,res,next)=>{ try{
+    const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
+    const pending=e.data.pendingSessions||[], index=Number(req.params.index);
+    if(!Number.isInteger(index)||!pending[index]) return res.status(404).json({error:'Session en attente introuvable'});
+    const edited=normalizeSession(req.body.session||req.body);
+    if(!edited) return res.status(400).json({error:'Session RACE ou QUALIFY invalide'});
+    const others=[...(e.data.sessions||[]),...pending.filter((_,i)=>i!==index)];
+    if(others.some(s=>sessionKey(s)===sessionKey(edited))) return res.status(409).json({error:'Une session avec cette date et ce type existe déjà'});
+    assertNoGuid(edited); pending[index]=edited; e.data.pendingSessions=pending; await store.saveEvent(e);
+    res.json(edited); }catch(e){next(e);} });
+  app.post('/api/admin/events/:slug/commission/:index/publish',requireAdmin,async(req,res,next)=>{ try{
+    const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
+    const pending=e.data.pendingSessions||[], index=Number(req.params.index);
+    if(!Number.isInteger(index)||!pending[index]) return res.status(404).json({error:'Session en attente introuvable'});
+    const draft=pending[index];
+    const candidate=draft.type==='RACE'?{...draft,results:applyPenalties(draft.results||[])}:draft;
+    const merged=mergeSessions(e.data.sessions||[],[candidate]);
+    if(!merged.added.length) return res.status(409).json({error:'Cette session est déjà publiée'});
+    e.data.sessions=merged.sessions; pending.splice(index,1); e.data.pendingSessions=pending;
+    await store.saveEvent(e); res.json({published:merged.added[0],pendingSessions:pending.length}); }catch(e){next(e);} });
+  app.delete('/api/admin/events/:slug/commission/:index',requireAdmin,async(req,res,next)=>{ try{
+    const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
+    const pending=e.data.pendingSessions||[], index=Number(req.params.index);
+    if(!Number.isInteger(index)||!pending[index]) return res.status(404).json({error:'Session en attente introuvable'});
+    const [rejected]=pending.splice(index,1); e.data.pendingSessions=pending; await store.saveEvent(e);
+    res.json({rejected:sessionKey(rejected)}); }catch(e){next(e);} });
   app.post('/api/admin/events/:slug/penalties',requireAdmin,async(req,res,next)=>{ try{
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
     const {sessionKey,driverId,seconds}=req.body||{}; // Commission penalty -> results re-rank automatically via standings/penMap
@@ -102,8 +142,8 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
     const servers=req.body.servers||e.data.serversAH||[]; let all=[];
     for(const s of servers) all=all.concat(await scanServer(s, opts));
-    const result=importPayloads(e.data.sessions||[], all); e.data.sessions=result.sessions; await store.saveEvent(e);
-    res.json({scanned:all.length, added:result.added.length, duplicates:result.duplicates.length}); }catch(e){next(e);} });
+    const result=stagePayloads(e,all); await store.saveEvent(e);
+    res.json({scanned:all.length,...result}); }catch(e){next(e);} });
   app.get('/api/admin/global/exclusions',requireAdmin,async(req,res,next)=>{ try{
     res.json(store.getSettings?await store.getSettings():{globalExclusions:[]}); }catch(e){next(e);} });
   app.put('/api/admin/global/exclusions',requireAdmin,async(req,res,next)=>{ try{

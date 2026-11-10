@@ -194,6 +194,15 @@ tbody tr:hover td { background: #eadbbc; }
 #admin { margin-top: 3rem; padding-top: 2rem; border-top: 3px solid var(--gold); }
 #login { display: flex; flex-wrap: wrap; gap: .65rem; padding: 1.2rem; background: var(--paper); border: 1px solid var(--line); }
 #admin-status { color: var(--green); font-weight: 700; }
+.commission-fields { display: grid; grid-template-columns: 1fr 1fr 160px; gap: .8rem; margin: 1rem 0; }
+.commission-fields label { display: grid; gap: .3rem; color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
+.commission-fields input, .commission-fields select { width: 100%; }
+.commission-actions { display: flex; flex-wrap: wrap; gap: .6rem; margin-top: 1rem; }
+[data-pending-card] table input[type="number"] { width: 105px; }
+[data-pending-card] table input[type="text"], [data-pending-card] table input:not([type]) { min-width: 150px; }
+[data-publish-pending] { background: var(--green); border-color: var(--green); }
+[data-reject-pending] { background: transparent; color: var(--red); border-color: var(--red); }
+button:disabled { cursor: not-allowed; opacity: .5; }
 
 @media (max-width: 850px) {
   .header-inner { min-height: 80px; }
@@ -225,4 +234,5 @@ tbody tr:hover td { background: #eadbbc; }
   .tabs { flex-wrap: nowrap; overflow-x: auto; }
   .tabs button { flex: 0 0 auto; }
   [data-panel], [data-apanel] { padding: .8rem; }
+  .commission-fields { grid-template-columns: 1fr; }
 }

@@ -149,6 +149,42 @@ test('API: health, événements, admin protégé, import anonymisé',async()=>{
   const imp=await http(app,'POST','/api/admin/events/open-1/import',{payloads:[{Date:'2026-02-01T20:00:00',Type:'RACE',Track:'Monza',Results:[{DriverGuid:GUID,DriverName:'Bob',Position:1}]}]}, {Authorization:`Bearer ${login.body.token}`});
   assert.equal(imp.body.added,1);
   const got=await http(app,'GET','/api/events/open-1'); assert.doesNotMatch(JSON.stringify(got.body),/7656119/);
+  assert.equal(got.body.data.sessions.length,0); // imported does not mean published
+  assert.equal('pendingSessions' in got.body.data,false); // private Commission drafts
+});
+test('Commission: import privé, correction, publication puis calcul du classement',async()=>{
+  process.env.ADMIN_USERNAME='admin'; process.env.ADMIN_PASSWORD='secret';
+  const store=new MemoryStore([{slug:'commission',name:'Commission',kind:'championship',
+    points_config:{scale:[25,18],polePoints:0,coefficient:1,jokers:0,minDistancePercent:0},data:{sessions:[],pendingSessions:[],penMap:{}}}]);
+  const app=createApp(store), login=await http(app,'POST','/api/admin/login',{username:'admin',password:'secret'});
+  const H={Authorization:`Bearer ${login.body.token}`};
+  const race={Date:'2026-04-01T20:00:00',Type:'RACE',Track:'Monza',Results:[
+    {DriverGuid:GUID,DriverName:'Alice',Position:1,TotalTime:100000,BestLap:50000},
+    {DriverGuid:'76561198000000002',DriverName:'Bob',Position:2,TotalTime:105000,BestLap:51000}]};
+  const qualify={Date:'2026-04-01T19:00:00',Type:'QUALIFY',Track:'Monza',Results:race.Results};
+  assert.equal((await http(app,'GET','/api/admin/events/commission/commission')).status,401);
+  const imported=await http(app,'POST','/api/admin/events/commission/import',{payloads:[race,qualify]},H);
+  assert.deepEqual(imported.body,{added:2,duplicates:0});
+  assert.equal((await http(app,'GET','/api/events/commission/standings')).body.length,0);
+  assert.equal((await http(app,'GET','/api/stats')).body.races,0);
+  const drafts=await http(app,'GET','/api/admin/events/commission/commission',null,H);
+  assert.equal(drafts.body.pendingSessions.length,2);
+  const corrected=structuredClone(drafts.body.pendingSessions[0]);
+  corrected.results[0].driverName='Alice corrigée'; corrected.results[0].penaltySeconds=10;
+  assert.equal((await http(app,'PUT','/api/admin/events/commission/commission/0',{session:corrected},H)).status,200);
+  assert.equal((await http(app,'GET','/api/events/commission')).body.data.sessions.length,0);
+  const published=await http(app,'POST','/api/admin/events/commission/commission/0/publish',{},H);
+  assert.equal(published.status,200); assert.equal(published.body.published.results[0].driverName,'Bob');
+  const publicEvent=await http(app,'GET','/api/events/commission');
+  assert.equal(publicEvent.body.data.sessions.length,1); assert.equal(publicEvent.body.data.sessions[0].results[1].driverName,'Alice corrigée');
+  assert.equal('pendingSessions' in publicEvent.body.data,false);
+  const standings=await http(app,'GET','/api/events/commission/standings');
+  assert.equal(standings.body[0].driverName,'Bob'); assert.equal(standings.body[0].total,25);
+  assert.equal((await http(app,'GET','/api/stats')).body.races,1);
+  const duplicate=await http(app,'POST','/api/admin/events/commission/import',{payloads:[race,qualify]},H);
+  assert.deepEqual(duplicate.body,{added:0,duplicates:2});
+  assert.equal((await http(app,'DELETE','/api/admin/events/commission/commission/0',null,H)).status,200);
+  assert.equal((await http(app,'GET','/api/admin/events/commission/commission',null,H)).body.pendingSessions.length,0);
 });
 test('SSR sans JS: accueil + événement, canonical, 503+Retry-After si backend KO',async()=>{
   const ok=createFrontendApp({fetchJson:async(url)=>url.endsWith('/api/stats')?{events:1,races:2,drivers:3}:url.includes('/api/events/')
