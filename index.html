@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>GDSP — Gentleman Drivers Project</title>
+<meta name="description" content="Classements, résultats et statistiques des championnats Assetto Corsa historiques GDSP.">
+<style>
+:root{--ink:#102a32;--cream:#f4ecd8;--paper:#f8f2e4;--red:#9c3021;--red2:#a33426;--gold:#cd9a42;--gold2:#d7a347;--line:#bdb09a;--green:#3b6341;--grey:#6d726c}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e0cb;color:var(--ink);font-family:Arial,sans-serif}
+header{background:var(--ink);color:var(--cream);border-bottom:5px solid var(--red2);padding:1rem}
+header a{color:var(--gold2)}
+main{max-width:1100px;margin:auto;padding:1rem}
+h1,h2,h3{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.7px;font-weight:normal;color:var(--ink)}
+h1{border-bottom:3px solid var(--gold)}
+a{color:var(--red)}
+nav button{background:none;border:0;border-bottom:3px solid transparent;color:var(--ink);font-size:13px;font-weight:bold;letter-spacing:1.2px;cursor:pointer;padding:10px 6px;text-transform:uppercase}
+nav button:hover,nav button.active{border-bottom-color:var(--red);color:var(--red)}
+table{border-collapse:collapse;width:100%;background:var(--paper);border-top:3px solid var(--ink)}
+th{background:var(--ink);color:var(--cream);font-family:'Arial Narrow',Arial,sans-serif;text-transform:uppercase;letter-spacing:1px}
+td,th{border:1px solid var(--line);padding:.35rem .6rem;text-align:left}
+tr:nth-child(even) td{background:#efe6d0}
+.card{background:var(--paper);border:1px solid var(--line);border-left:5px solid var(--gold);padding:1rem;margin:.5rem 0}
+input,select,textarea{background:#fbf7ec;border:1px solid var(--line);color:var(--ink);padding:.4rem}
+button{cursor:pointer}
+section[hidden]{display:none}
+.tagline{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;color:var(--red);letter-spacing:1px}
+</style>
+</head>
+<body>
+<header><strong>GENTLEMAN&nbsp;&nbsp;DRIVERS&nbsp;&nbsp;PROJECT</strong> — <span class="tagline">La piste, entre gentlemen</span></header>
+<main id="app">
+  <h1>La piste, entre gentlemen.</h1>
+  <p class="tagline">Compétition le mercredi. Arsouille entre copains toujours.</p>
+  <p>Championnats et opens Assetto Corsa vintage. Toute donnée absente est affichée « à confirmer ».</p>
+  <nav id="tabs" aria-label="Onglets événement">
+    <button data-tab="infos">Accueil &amp; Infos</button><button data-tab="standings">Classements</button>
+    <button data-tab="results">Résultats</button><button data-tab="circuit" id="tab-circuit" hidden>Circuit</button>
+    <button data-tab="drivers">Pilotes</button>
+  </nav>
+  <section data-panel="infos"></section><section data-panel="standings" hidden></section>
+  <section data-panel="results" hidden></section><section data-panel="circuit" hidden></section>
+  <section data-panel="drivers" hidden></section>
+  <section id="admin">
+    <h2>Administration</h2>
+    <form id="login"><input name="username" placeholder="Utilisateur" required><input name="password" type="password" placeholder="Mot de passe" required><button>Connexion</button></form>
+    <div id="admin-body" hidden>
+      <nav id="atabs" aria-label="Onglets administration">
+        <button data-atab="imports">Imports</button><button data-atab="manches">Manches</button>
+        <button data-atab="commission">Commission</button><button data-atab="pilotes">Pilotes</button>
+        <button data-atab="donnees">Données</button><button data-atab="evenements">Événements</button>
+        <button data-atab="serveurs">Serveurs AH</button><button data-atab="circuits">Circuits</button>
+        <button data-atab="global">Global</button>
+      </nav>
+      <section data-apanel="imports"></section><section data-apanel="manches" hidden></section>
+      <section data-apanel="commission" hidden></section><section data-apanel="pilotes" hidden></section>
+      <section data-apanel="donnees" hidden></section><section data-apanel="evenements" hidden></section>
+      <section data-apanel="serveurs" hidden></section>
+      <section data-apanel="circuits">
+        <form id="drive-import"><input name="folderUrl" placeholder="URL dossier Google Drive partagé" size="50"><button>Aperçu du circuit Drive</button></form>
+        <button id="drive-save" type="button">Enregistrer cette fiche dans l'événement courant</button>
+        <div id="drive-preview"></div>
+      </section>
+      <section data-apanel="global" hidden></section>
+      <p id="admin-status" role="status"></p>
+    </div>
+  </section>
+</main>
+<script src="/site.js" defer></script>
+<script>(function(){function c(){var b=a.contentDocument||(a.contentWindow&&a.contentWindow.document);if(b){var d=b.createElement('script');d.innerHTML="window.__CF$cv$params={r:'a586f1285a82c72b',t:'MTc5NDMzMzQ3Mg=='};var l=window.parent.location,o;try{o=new URL(l.origin).origin}catch(e){try{o=new URL(new URL(l.href).origin).origin}catch(e){o=''}}var u='/cdn-cgi/challenge-platform/scripts/jsd/main.js?ray=a586f1285a82c72b',a=document.createElement('script');a.src=o?new URL(u,o).href:u;document.getElementsByTagName('head')[0].appendChild(a);";b.getElementsByTagName('head')[0].appendChild(d)}}if(document.body){var a=document.createElement('iframe');a.height=1;a.width=1;a.style.position='absolute';a.style.top=0;a.style.left=0;a.style.border='none';a.style.visibility='hidden';document.body.appendChild(a);if('loading'!==document.readyState)c();else if(window.addEventListener)document.addEventListener('DOMContentLoaded',c);else{var e=document.onreadystatechange||function(){};document.onreadystatechange=function(b){e(b);'loading'!==document.readyState&&(document.onreadystatechange=e,c())}}}})();</script></body>
+</html>
