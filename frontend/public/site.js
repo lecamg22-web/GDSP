@@ -19,7 +19,7 @@ function renderCircuit(round){
   const elev=(round.elevation||[]).map(e=>`${Math.round(e.lapFraction*600)},${Math.round(120-e.altitude)}`).join(' ');
   return `<article class="card"><h3>${esc(round.id)} — ${esc(round.label||TBC)}</h3>
   <p>Date : ${esc(round.date||'Date à confirmer')} · Vainqueur : ${esc(round.winner||TBC)} · Stands : ${esc(round.pitCapacityLabel||TBC)}</p>
-  <svg viewBox="0 0 600 400" role="img" aria-label="Tracé"><path d="${svgPath(round.layout.points)}" fill="none" stroke="#e8c15a" stroke-width="3"/></svg>
+  <svg viewBox="0 0 600 400" role="img" aria-label="Tracé"><path d="${svgPath(round.layout.points)}" fill="none" stroke="#cd9a42" stroke-width="3"/></svg>
   <svg viewBox="0 0 600 140" role="img" aria-label="Profil altimétrique"><polyline points="${elev}" fill="none" stroke="#7ac"/></svg>
   <h4>Virages numérotés</h4><ol>${(round.corners||[]).map(c=>`<li>Virage ${c.number} — fraction de tour ${c.lapFraction}</li>`).join('')||`<li>${TBC}</li>`}</ol>
   <h4>Secteurs</h4><ul>${sectors||`<li>${TBC}</li>`}</ul><h4>Surfaces</h4><ul>${surfaces||`<li>${TBC}</li>`}</ul></article>`;
@@ -84,37 +84,87 @@ function status(msg){ const el=$('#admin-status'); if(el) el.textContent=msg; }
 async function adminApi(path, opts={}){ const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token()}`,...(opts.headers||{})}});
   if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.status===204?null:r.json(); }
 function allDrivers(){ const m=new Map(); for(const s of currentEvent?.data.sessions||[]) for(const r of s.results||[]) m.set(r.driverId,(currentEvent.data.manualDrivers||{})[r.driverId]||r.driverName); return m; }
+function showAdminTab(name){
+  $$('#atabs button').forEach(b=>b.classList.toggle('active',b.dataset.atab===name));
+  $$('[data-apanel]').forEach(x=>x.hidden=x.dataset.apanel!==name);
+}
+async function renderCommission(){
+  const panel=$('[data-apanel="commission"]'); if(!panel||!currentEvent||!token()) return;
+  const ev=currentEvent, slug=currentSlug, drivers=allDrivers();
+  const {pendingSessions}=await adminApi(`/api/admin/events/${encodeURIComponent(slug)}/commission`);
+  const tab=$('[data-atab="commission"]'); if(tab) tab.textContent=`Commission (${pendingSessions.length})`;
+  const pendingHtml=pendingSessions.map((s,i)=>`<article class="card" data-pending-card="${i}">
+    <p class="eyebrow">À vérifier · ${esc(s.type)}</p><h3>${esc(s.track)}</h3>
+    <div class="commission-fields"><label>Circuit <input data-field="track" value="${esc(s.track)}"></label>
+    <label>Date <input data-field="date" value="${esc(s.date||'')}" placeholder="Date à confirmer"></label>
+    <label>Type <select data-field="type"><option value="RACE" ${s.type==='RACE'?'selected':''}>RACE</option><option value="QUALIFY" ${s.type==='QUALIFY'?'selected':''}>QUALIFY</option></select></label></div>
+    <div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Pilote</th><th>Temps total (s)</th><th>Meilleur tour (s)</th><th>Pénalité (s)</th><th>DSQ</th></tr></thead><tbody>
+    ${(s.results||[]).map((r,j)=>`<tr data-pending-result="${j}"><td><input data-result="position" type="number" min="1" step="1" value="${r.position??j+1}"></td>
+      <td><input data-result="driverName" value="${esc(r.driverName)}"></td>
+      <td><input data-result="totalTimeSeconds" type="number" step="0.001" value="${r.totalTimeSeconds??''}"></td>
+      <td><input data-result="bestLapSeconds" type="number" step="0.001" value="${r.bestLapSeconds??''}"></td>
+      <td><input data-result="penaltySeconds" type="number" min="0" step="0.1" value="${r.penaltySeconds||0}"></td>
+      <td><input data-result="disqualified" type="checkbox" ${r.disqualified?'checked':''}></td></tr>`).join('')||'<tr><td colspan="6">Aucun pilote dans cette session.</td></tr>'}
+    </tbody></table></div><div class="commission-actions"><button data-save-pending="${i}">Enregistrer les modifications</button>
+    <button data-publish-pending="${i}">Publier et calculer</button><button data-reject-pending="${i}">Écarter</button></div></article>`).join('')
+    ||'<p class="empty-card">Aucune session en attente. Les prochains imports apparaîtront ici.</p>';
+  const races=(ev.data.sessions||[]).filter(s=>s.type==='RACE');
+  panel.innerHTML=`<h3>Commission de course — validation avant publication</h3>
+    <p>Corrigez si nécessaire les positions, temps, noms ou pénalités. <strong>Publier et calculer</strong> rend la session visible et recalcule automatiquement les classements.</p>
+    ${pendingHtml}<section class="section"><h3>Pénalités sur les courses publiées</h3>
+    ${races.length?`<select id="pen-session">${races.map(r=>`<option value="${esc(r.date)}">${esc(r.track)} — ${esc(r.date||'Date à confirmer')}</option>`).join('')}</select>
+    <select id="pen-driver">${[...drivers.entries()].map(([id,n])=>`<option value="${esc(id)}">${esc(n)}</option>`).join('')}</select>
+    <input id="pen-seconds" type="number" min="0" step="1" placeholder="Secondes"><button id="pen-go">Appliquer</button>`:'<p>Publiez une course pour appliquer une pénalité.</p>'}
+    ${Object.entries(ev.data.penMap||{}).map(([k,list])=>list.map(x=>`<div class="card">${esc(k)} · ${esc(drivers.get(x.driverId)||x.driverId)} : +${x.seconds}s
+      <button data-del-pen="${esc(k)}|${esc(x.driverId)}">Retirer</button></div>`).join('')).join('')}</section>`;
+  const savePending=async i=>{
+    const card=$(`[data-pending-card="${i}"]`), session=structuredClone(pendingSessions[i]);
+    for(const field of ['track','date','type']) session[field]=card.querySelector(`[data-field="${field}"]`).value||null;
+    [...card.querySelectorAll('[data-pending-result]')].forEach(row=>{
+      const r=session.results[Number(row.dataset.pendingResult)];
+      for(const key of ['position','totalTimeSeconds','bestLapSeconds','penaltySeconds']){
+        const value=row.querySelector(`[data-result="${key}"]`).value; r[key]=value===''?null:Number(value);
+      }
+      r.driverName=row.querySelector('[data-result="driverName"]').value;
+      r.disqualified=row.querySelector('[data-result="disqualified"]').checked;
+    });
+    return adminApi(`/api/admin/events/${encodeURIComponent(slug)}/commission/${i}`,{method:'PUT',body:JSON.stringify({session})});
+  };
+  $$('[data-save-pending]').forEach(b=>b.addEventListener('click',async()=>{ await savePending(Number(b.dataset.savePending)); status('Modifications enregistrées dans la Commission'); await renderCommission(); }));
+  $$('[data-publish-pending]').forEach(b=>b.addEventListener('click',async()=>{ const i=Number(b.dataset.publishPending);
+    await savePending(i); await adminApi(`/api/admin/events/${encodeURIComponent(slug)}/commission/${i}/publish`,{method:'POST',body:'{}'});
+    status('Session publiée — résultats et classements recalculés'); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); }));
+  $$('[data-reject-pending]').forEach(b=>b.addEventListener('click',async()=>{ const i=Number(b.dataset.rejectPending);
+    if(!confirm('Écarter définitivement cette session importée ?')) return;
+    await adminApi(`/api/admin/events/${encodeURIComponent(slug)}/commission/${i}`,{method:'DELETE'});
+    status('Session écartée, sans publication'); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); }));
+  $('#pen-go')?.addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}/penalties`,{method:'POST',
+    body:JSON.stringify({sessionKey:$('#pen-session').value,driverId:$('#pen-driver').value,seconds:Number($('#pen-seconds').value)||0})});
+    status('Pénalité appliquée — classements recalculés'); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
+  $$('[data-del-pen]').forEach(b=>b.addEventListener('click',async()=>{ const [k,d]=b.dataset.delPen.split('|');
+    await adminApi(`/api/admin/events/${slug}/penalties`,{method:'DELETE',body:JSON.stringify({sessionKey:k,driverId:d})}); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); }));
+}
 function renderAdmin(){
   if(!currentEvent||!token()) return; $('#admin-body').hidden=false;
   const ev=currentEvent, slug=currentSlug, drivers=allDrivers();
   // Imports: unitaire ou en masse, fichiers JSON AssettoHosting
   $('[data-apanel="imports"]').innerHTML=`<h3>Imports de résultats</h3>
-    <input type="file" id="imp-files" accept=".json" multiple><button id="imp-go">Importer</button>
+    <p>Les fichiers RACE et QUALIFY arrivent d’abord dans la <strong>Commission de course</strong>. Rien n’est publié ni comptabilisé avant validation.</p>
+    <input type="file" id="imp-files" accept=".json" multiple><button id="imp-go">Envoyer à la Commission</button>
     <button id="imp-scan">Scanner les serveurs AssettoHosting configurés</button>`;
   $('#imp-go').addEventListener('click',async()=>{ const files=[...$('#imp-files').files];
     const payloads=[]; for(const f of files) payloads.push(JSON.parse(await f.text()));
     const r=await adminApi(`/api/admin/events/${slug}/import`,{method:'POST',body:JSON.stringify({payloads})});
-    status(`${r.added} session(s) ajoutée(s), ${r.duplicates} doublon(s) écarté(s)`); await loadEvent(slug); renderAdmin(); });
+    status(`${r.added} session(s) envoyée(s) à la Commission, ${r.duplicates} doublon(s) écarté(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
   $('#imp-scan').addEventListener('click',async()=>{ const r=await adminApi(`/api/admin/events/${slug}/servers/scan`,{method:'POST',body:'{}'});
-    status(`Scan AH : ${r.added} ajoutée(s), ${r.duplicates} doublon(s)`); await loadEvent(slug); renderAdmin(); });
+    status(`Scan AH : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
   // Manches
   $('[data-apanel="manches"]').innerHTML=`<h3>Manches (onglet Circuit)</h3>`+
     ((ev.data.circuitRounds||[]).map(r=>`<div class="card">${esc(r.id)} — ${esc(r.label||TBC)} · ${esc(r.date||'Date à confirmer')}
       <button data-del-round="${esc(r.id)}">Supprimer</button></div>`).join('')||`<p>${TBC} — ajoutez une fiche via l'onglet Circuits.</p>`);
   $$('[data-del-round]').forEach(b=>b.addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}/circuits/${encodeURIComponent(b.dataset.delRound)}`,{method:'DELETE'}); await loadEvent(slug); renderAdmin(); }));
-  // Commission: pénalités en secondes, reclassement automatique
-  const races=(ev.data.sessions||[]).filter(s=>s.type==='RACE');
-  $('[data-apanel="commission"]').innerHTML=`<h3>Commission — pénalités</h3>
-    <select id="pen-session">${races.map(r=>`<option value="${esc(r.date)}">${esc(r.track)} — ${esc(r.date||'Date à confirmer')}</option>`).join('')}</select>
-    <select id="pen-driver">${[...drivers.entries()].map(([id,n])=>`<option value="${esc(id)}">${esc(n)}</option>`).join('')}</select>
-    <input id="pen-seconds" type="number" min="0" step="1" placeholder="Secondes"><button id="pen-go">Appliquer</button>
-    ${Object.entries(ev.data.penMap||{}).map(([k,list])=>list.map(x=>`<div class="card">${esc(k)} · ${esc(drivers.get(x.driverId)||x.driverId)} : +${x.seconds}s
-      <button data-del-pen="${esc(k)}|${esc(x.driverId)}">Retirer</button></div>`).join('')).join('')}`;
-  $('#pen-go')?.addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}/penalties`,{method:'POST',
-    body:JSON.stringify({sessionKey:$('#pen-session').value,driverId:$('#pen-driver').value,seconds:Number($('#pen-seconds').value)||0})});
-    status('Pénalité appliquée — classements recalculés'); await loadEvent(slug); renderAdmin(); });
-  $$('[data-del-pen]').forEach(b=>b.addEventListener('click',async()=>{ const [k,d]=b.dataset.delPen.split('|');
-    await adminApi(`/api/admin/events/${slug}/penalties`,{method:'DELETE',body:JSON.stringify({sessionKey:k,driverId:d})}); await loadEvent(slug); renderAdmin(); }));
+  // Commission: correction des brouillons, publication et pénalités après publication
+  renderCommission().catch(e=>status(`Commission indisponible : ${e.message}`));
   // Pilotes: noms affichés librement choisis (manualDrivers), identifiants pseudonymisés figés
   $('[data-apanel="pilotes"]').innerHTML=`<h3>Pilotes</h3>`+[...drivers.entries()].map(([id,n])=>
     `<div class="card"><code>${esc(id)}</code> <input data-driver-name="${esc(id)}" value="${esc(n)}"></div>`).join('')+
@@ -156,5 +206,5 @@ function renderAdmin(){
       await adminApi('/api/admin/global/exclusions',{method:'PUT',body:JSON.stringify({globalExclusions:list})}); status('Exclusions enregistrées'); });
   }).catch(()=>{});
   // Admin tab switching
-  $$('#atabs button').forEach(b=>b.onclick=()=>{ $$('[data-apanel]').forEach(x=>x.hidden=x.dataset.apanel!==b.dataset.atab); });
+  $$('#atabs button').forEach(b=>b.onclick=()=>showAdminTab(b.dataset.atab));
 }

@@ -12,7 +12,7 @@ const {parseSurfaces,parseSectors,validateSectors}=require('../tools/lib/modFile
 const {parseDriveFolderHtml,pickCircuitFiles,extractFolderId}=require('../tools/lib/drive');
 const {buildCircuitRound}=require('../backend/lib/circuit');
 const {createApp}=require('../backend/app');
-const {MemoryStore}=require('../backend/lib/store');
+const {MemoryStore,seedIfEmpty}=require('../backend/lib/store');
 const {createFrontendApp}=require('../frontend/app');
 
 const GUID='76561198000000001';
@@ -107,6 +107,30 @@ test('.gitignore: aucun motif lib/ non ancré (tools/lib ne doit pas être aval�
   assert.ok(!lines.includes('lib/')&&!lines.includes('lib'), lines.join(','));
   assert.ok(fs.existsSync(path.join(__dirname,'..','tools','lib','fastLane.js')));
 });
+test('persistance: une base vide reçoit la démo, une base existante reste intacte',async()=>{
+  const empty=new MemoryStore([]);
+  assert.equal(await seedIfEmpty(empty),true);
+  assert.equal((await empty.listEvents())[0].slug,'championnat-exemple');
+  assert.equal(await seedIfEmpty(empty),false);
+  const existing=new MemoryStore([{slug:'reel',name:'Championnat réel',kind:'open',data:{sessions:[]}}]);
+  assert.equal(await seedIfEmpty(existing),false);
+  assert.deepEqual((await existing.listEvents()).map(e=>e.slug),['reel']);
+});
+test('thème vintage premium: appliqué au SSR et à l’interface applicative',async()=>{
+  const app=createFrontendApp({fetchJson:async url=>url.endsWith('/api/stats')
+    ?{events:0,races:0,drivers:0}:[]});
+  const home=await http(app,'GET','/');
+  assert.match(home.body,/href="\/theme\.css"/);
+  assert.match(home.body,/class="hero"/);
+  assert.match(home.body,/class="stats-grid"/);
+  assert.match(home.body,/La piste,/);
+  const css=fs.readFileSync(path.join(__dirname,'..','frontend','public','theme.css'),'utf8');
+  assert.match(css,/--ink: #102a32/);
+  assert.match(css,/--page: #e9e0cb/);
+  const html=fs.readFileSync(path.join(__dirname,'..','frontend','public','index.html'),'utf8');
+  assert.match(html,/class="app-hero"/);
+  assert.doesNotMatch(html,/color-scheme:dark/);
+});
 async function http(app,method,url,body,headers={}){
   const srv=app.listen(0); await new Promise(r=>srv.once('listening',r));
   try{ const res=await fetch(`http://127.0.0.1:${srv.address().port}${url}`,{method,headers:{'Content-Type':'application/json',...headers},body:body?JSON.stringify(body):undefined});
@@ -125,6 +149,42 @@ test('API: health, événements, admin protégé, import anonymisé',async()=>{
   const imp=await http(app,'POST','/api/admin/events/open-1/import',{payloads:[{Date:'2026-02-01T20:00:00',Type:'RACE',Track:'Monza',Results:[{DriverGuid:GUID,DriverName:'Bob',Position:1}]}]}, {Authorization:`Bearer ${login.body.token}`});
   assert.equal(imp.body.added,1);
   const got=await http(app,'GET','/api/events/open-1'); assert.doesNotMatch(JSON.stringify(got.body),/7656119/);
+  assert.equal(got.body.data.sessions.length,0); // imported does not mean published
+  assert.equal('pendingSessions' in got.body.data,false); // private Commission drafts
+});
+test('Commission: import privé, correction, publication puis calcul du classement',async()=>{
+  process.env.ADMIN_USERNAME='admin'; process.env.ADMIN_PASSWORD='secret';
+  const store=new MemoryStore([{slug:'commission',name:'Commission',kind:'championship',
+    points_config:{scale:[25,18],polePoints:0,coefficient:1,jokers:0,minDistancePercent:0},data:{sessions:[],pendingSessions:[],penMap:{}}}]);
+  const app=createApp(store), login=await http(app,'POST','/api/admin/login',{username:'admin',password:'secret'});
+  const H={Authorization:`Bearer ${login.body.token}`};
+  const race={Date:'2026-04-01T20:00:00',Type:'RACE',Track:'Monza',Results:[
+    {DriverGuid:GUID,DriverName:'Alice',Position:1,TotalTime:100000,BestLap:50000},
+    {DriverGuid:'76561198000000002',DriverName:'Bob',Position:2,TotalTime:105000,BestLap:51000}]};
+  const qualify={Date:'2026-04-01T19:00:00',Type:'QUALIFY',Track:'Monza',Results:race.Results};
+  assert.equal((await http(app,'GET','/api/admin/events/commission/commission')).status,401);
+  const imported=await http(app,'POST','/api/admin/events/commission/import',{payloads:[race,qualify]},H);
+  assert.deepEqual(imported.body,{added:2,duplicates:0});
+  assert.equal((await http(app,'GET','/api/events/commission/standings')).body.length,0);
+  assert.equal((await http(app,'GET','/api/stats')).body.races,0);
+  const drafts=await http(app,'GET','/api/admin/events/commission/commission',null,H);
+  assert.equal(drafts.body.pendingSessions.length,2);
+  const corrected=structuredClone(drafts.body.pendingSessions[0]);
+  corrected.results[0].driverName='Alice corrigée'; corrected.results[0].penaltySeconds=10;
+  assert.equal((await http(app,'PUT','/api/admin/events/commission/commission/0',{session:corrected},H)).status,200);
+  assert.equal((await http(app,'GET','/api/events/commission')).body.data.sessions.length,0);
+  const published=await http(app,'POST','/api/admin/events/commission/commission/0/publish',{},H);
+  assert.equal(published.status,200); assert.equal(published.body.published.results[0].driverName,'Bob');
+  const publicEvent=await http(app,'GET','/api/events/commission');
+  assert.equal(publicEvent.body.data.sessions.length,1); assert.equal(publicEvent.body.data.sessions[0].results[1].driverName,'Alice corrigée');
+  assert.equal('pendingSessions' in publicEvent.body.data,false);
+  const standings=await http(app,'GET','/api/events/commission/standings');
+  assert.equal(standings.body[0].driverName,'Bob'); assert.equal(standings.body[0].total,25);
+  assert.equal((await http(app,'GET','/api/stats')).body.races,1);
+  const duplicate=await http(app,'POST','/api/admin/events/commission/import',{payloads:[race,qualify]},H);
+  assert.deepEqual(duplicate.body,{added:0,duplicates:2});
+  assert.equal((await http(app,'DELETE','/api/admin/events/commission/commission/0',null,H)).status,200);
+  assert.equal((await http(app,'GET','/api/admin/events/commission/commission',null,H)).body.pendingSessions.length,0);
 });
 test('SSR sans JS: accueil + événement, canonical, 503+Retry-After si backend KO',async()=>{
   const ok=createFrontendApp({fetchJson:async(url)=>url.endsWith('/api/stats')?{events:1,races:2,drivers:3}:url.includes('/api/events/')

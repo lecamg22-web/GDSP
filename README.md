@@ -91,6 +91,17 @@ en millisecondes, distance déduite de `NumLaps`, collisions imbriquées
 
 ## Administration (mot de passe, jeton Bearer)
 
+### Validation par la Commission avant publication
+
+Tout import RACE/QUALIFY — fichiers JSON, scan manuel ou import AssettoHosting — alimente
+`data.pendingSessions`, une file privée accessible uniquement avec le jeton admin. Ces brouillons
+ne sont pas renvoyés par l'API publique et ne participent ni aux résultats, ni aux statistiques,
+ni aux classements. Dans **Commission**, l'administrateur peut corriger circuit, date, type,
+positions, pilotes, temps, pénalités et disqualifications, enregistrer, écarter ou publier chaque
+session. **Publier et calculer** reclasse les résultats avec les pénalités, déplace la session vers
+`data.sessions` et rend immédiatement effectifs les classements général et GLOBAL. Les doublons
+(date + type) sont détectés à la fois contre les brouillons et les sessions déjà publiées.
+
 Onglets fonctionnels dans `site.js` : **Imports** (fichier JSON unitaire ou en masse,
 scan AssettoHosting), **Manches** (liste/suppression), **Commission** (pénalités en
 secondes — les classements se recalculent, la clé de pénalité est la date de course),

@@ -29,15 +29,15 @@ function normalizeSession(raw){
     bestLapSeconds:r.bestLapSeconds!=null?Number(r.bestLapSeconds):ms(r.BestLap),
     laps:r.NumLaps??r.LapCount??r.laps??null,
     distancePercent:r.DistancePercent??r.distancePercent??((r.NumLaps!=null&&maxLaps)?Math.round(r.NumLaps/maxLaps*1000)/10:100),
-    gridPosition:r.GridPosition??null, disqualified:!!(r.Disqualified??r.disqualified),
+    gridPosition:r.GridPosition??r.gridPosition??null, disqualified:!!(r.Disqualified??r.disqualified),
     penaltySeconds:penaltySeconds(r)
   }));
   const lapCounters=new Map();
   const laps=(raw.Laps||raw.laps||[]).map(l=>{ const id=(l.DriverGuid||l.DriverGUID)?pseudonymize(l.DriverGuid||l.DriverGUID):l.driverId;
     const n=(lapCounters.get(id)||0)+1; lapCounters.set(id,n); return normalizeLap(l,n); });
   return { date:raw.Date||raw.date||null, type, track:raw.TrackName||raw.Track||raw.track||'À confirmer',
-    trackConfig:raw.TrackConfig||null, eventName:raw.EventName||null,
-    championshipId:raw.ChampionshipID||null, sessionFile:raw.SessionFile||null,
+    trackConfig:raw.TrackConfig||raw.trackConfig||null, eventName:raw.EventName||raw.eventName||null,
+    championshipId:raw.ChampionshipID||raw.championshipId||null, sessionFile:raw.SessionFile||raw.sessionFile||null,
     results, laps,
     events:(raw.Events||raw.events||[]).map(e=>({type:e.Type||e.type||'COLLISION',
       // real exports nest the driver: {Driver:{Guid,Name}, OtherDriver:{Guid,Name}}

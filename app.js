@@ -14,12 +14,16 @@ function proxyApi(req,res){
   upstream.on('error',()=>{ if(!res.headersSent){ res.set('Retry-After','30'); res.status(503).send('<h1>Service temporairement indisponible</h1><p>Veuillez réessayer dans quelques instants.</p>'); } });
   req.pipe(upstream);
 }
-function unavailable(res){ res.set('Retry-After','30'); return res.status(503).send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><title>GDSP — temporairement indisponible</title></head><body><h1>Service temporairement indisponible</h1><p>Le service de résultats ne répond pas. Veuillez réessayer dans quelques instants.</p></body></html>`); }
+function unavailable(res){ res.set('Retry-After','30'); return res.status(503).send(`<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>GDSP — temporairement indisponible</title><link rel="stylesheet" href="/theme.css"></head><body><main><section class="content-card"><h1>Service temporairement indisponible</h1><p>Le service de résultats ne répond pas. Veuillez réessayer dans quelques instants.</p></section></main></body></html>`); }
 function shell({title,description,canonical,body}){
   return `<!doctype html><html lang="fr"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>${esc(title)}</title><meta name="description" content="${esc(description)}"><link rel="canonical" href="${esc(canonical)}">
-<style> :root{--ink:#102a32;--cream:#f4ecd8;--paper:#f8f2e4;--red:#9c3021;--red2:#a33426;--gold:#cd9a42;--gold2:#d7a347;--line:#bdb09a;--green:#3b6341;--grey:#6d726c} *{box-sizing:border-box} body{margin:0;background:#e9e0cb;color:var(--ink);font-family:Arial,sans-serif} header{background:var(--ink);color:var(--cream);border-bottom:5px solid var(--red2);padding:1rem} header a{color:var(--gold2)} main{max-width:1100px;margin:auto;padding:1rem} h1,h2,h3{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.7px;font-weight:normal;color:var(--ink)} h1{border-bottom:3px solid var(--gold)} a{color:var(--red)} nav button{background:none;border:0;border-bottom:3px solid transparent;color:var(--ink);font-size:13px;font-weight:bold;letter-spacing:1.2px;cursor:pointer;padding:10px 6px;text-transform:uppercase} nav button:hover,nav button.active{border-bottom-color:var(--red);color:var(--red)} table{border-collapse:collapse;width:100%;background:var(--paper);border-top:3px solid var(--ink)} th{background:var(--ink);color:var(--cream);font-family:'Arial Narrow',Arial,sans-serif;text-transform:uppercase;letter-spacing:1px} td,th{border:1px solid var(--line);padding:.35rem .6rem;text-align:left} tr:nth-child(even) td{background:#efe6d0} .card{background:var(--paper);border:1px solid var(--line);border-left:5px solid var(--gold);padding:1rem;margin:.5rem 0} input,select,textarea{background:#fbf7ec;border:1px solid var(--line);color:var(--ink);padding:.4rem} button{cursor:pointer} section[hidden]{display:none} .tagline{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;color:var(--red);letter-spacing:1px} </style>
-</head><body><header><a href="/">Gentleman Drivers Project</a> · <a href="/global">Classement GLOBAL Discord</a></header><main>${body}</main>
+<title>${esc(title)}</title><meta name="description" content="${esc(description)}"><meta name="theme-color" content="#102a32"><link rel="canonical" href="${esc(canonical)}">
+<link rel="stylesheet" href="/theme.css">
+</head><body><a class="skip-link" href="#contenu">Aller au contenu</a><header class="site-header"><div class="header-inner">
+<a class="brand" href="/" aria-label="GDSP — accueil"><span class="brand-mark" aria-hidden="true">GDSP</span><span><span class="brand-name">Gentleman Drivers Project</span><span class="brand-subtitle">La piste, entre gentlemen</span></span></a>
+<nav class="site-nav" aria-label="Navigation principale"><a href="/">Accueil</a><a href="/global">Classement global</a><a class="nav-highlight" href="/index.html">Espace membre</a></nav>
+</div></header><main id="contenu">${body}</main>
+<footer class="site-footer"><div class="footer-inner"><span>© Gentleman Drivers Project · Assetto Corsa historique</span><span>Compétition le mercredi. Arsouille entre copains toujours.</span></div></footer>
 <script src="/site.js" defer></script></body></html>`;
 }
 function createFrontendApp({fetchJson=defaultFetchJson, siteUrl=process.env.SITE_URL||''}={}){
@@ -34,12 +38,19 @@ function createFrontendApp({fetchJson=defaultFetchJson, siteUrl=process.env.SITE
   }catch{ return unavailable(res); } });
   app.get('/',async(req,res)=>{ try{
     const [events,stats]=await Promise.all([fetchJson(`${backendBase()}/api/events`),fetchJson(`${backendBase()}/api/stats`)]);
-    const list=kind=>events.filter(e=>e.kind===kind).map(e=>`<li><a href="/evenements/${esc(e.slug)}">${esc(e.name)}</a></li>`).join('')||'<li>À confirmer</li>';
-    const body=`<h1>Gentleman Drivers Project</h1>
-<p class="tagline">La piste, entre gentlemen. Compétition le mercredi, arsouille entre copains toujours.</p><p>Championnats et opens Assetto Corsa historiques, en français. Classements consolidés après chaque soirée de course.</p>
-<p><a href="https://discord.com">Rejoindre le Discord</a> · Règlement : respect en piste, aucune aide moderne, fair-play gentleman driver.</p>
-<h2>Statistiques globales</h2><p>${stats.events} événements · ${stats.races} courses · ${stats.drivers} pilotes</p>
-<h2>Championnats en cours</h2><ul>${list('championship')}</ul><h2>Opens</h2><ul>${list('open')}</ul><h2>Archives</h2><ul>${list('archive')}</ul>`;
+    const kindLabels={championship:'Championnat',open:'Open',archive:'Archive'};
+    const cards=kind=>events.filter(e=>e.kind===kind).map(e=>`<article class="event-card"><div><span class="event-kind">${kindLabels[kind]}</span><h3><a href="/evenements/${esc(e.slug)}">${esc(e.name)}</a></h3></div><span class="event-link">Voir l’événement →</span></article>`).join('')||'<p class="empty-card">Programme à confirmer.</p>';
+    const section=(kind,title,subtitle,id)=>`<section class="section" id="${id}"><div class="section-heading"><div><p class="eyebrow">Le programme GDSP</p><h2>${title}</h2></div><p>${subtitle}</p></div><div class="event-grid">${cards(kind)}</div></section>`;
+    const body=`<section class="hero"><div class="hero-copy"><p class="eyebrow">Assetto Corsa · Simracing historique</p>
+<h1>La piste,<em>entre gentlemen.</em></h1>
+<p class="tagline">Compétition le mercredi. Arsouille entre copains toujours. Des championnats historiques, des résultats consolidés et le plaisir de courir ensemble.</p>
+<div class="hero-actions"><a class="button" href="#championnats">Découvrir les championnats</a><a class="button button-secondary" href="/global">Classement global</a></div></div>
+<div class="hero-emblem" aria-hidden="true"><div class="emblem-ring"><div><div class="emblem-gdsp">GDSP</div><div class="emblem-year">Gentleman Drivers</div></div></div><p>Fair-play · Historique<br>Entre copains</p></div></section>
+<section class="stats-grid" aria-label="Statistiques globales"><div class="stat"><strong class="stat-value">${stats.events}</strong><span class="stat-label">Événement${stats.events>1?'s':''}</span></div><div class="stat"><strong class="stat-value">${stats.races}</strong><span class="stat-label">Course${stats.races>1?'s':''}</span></div><div class="stat"><strong class="stat-value">${stats.drivers}</strong><span class="stat-label">Pilote${stats.drivers>1?'s':''}</span></div></section>
+${section('championship','Championnats en cours','La régularité récompensée, course après course.','championnats')}
+${section('open','Opens','Une soirée, un plateau, une nouvelle histoire.','opens')}
+${section('archive','Archives','Les saisons et les souvenirs du club.','archives')}
+<aside class="club-banner"><div><p class="eyebrow">Rejoindre le club</p><h2>Plus qu’un championnat, une bande de copains.</h2><p>Respect en piste, aucune aide moderne et fair-play gentleman driver. Retrouvez la communauté sur Discord pour les prochaines soirées de course.</p></div><a class="button" href="https://discord.com">Rejoindre le Discord</a></aside>`;
     res.send(shell({title:'GDSP — Gentleman Drivers Project',description:'Classements Assetto Corsa historiques GDSP',canonical:`${siteUrl}/`,body}));
   }catch{ return unavailable(res); } });
   app.get('/evenements/:slug',async(req,res)=>{ try{
@@ -47,14 +58,14 @@ function createFrontendApp({fetchJson=defaultFetchJson, siteUrl=process.env.SITE
     const info=e.data.eventInfo||{}; // per-event ONLY: never borrow labels from another event
     const calendar=Object.entries(e.data.customCalendar||{}).map(([k,v])=>`<li>${esc(k)} : ${esc(v||TBC)}</li>`).join('')||'<li>Date à confirmer</li>';
     const rounds=e.data.circuitRounds||[];
-    const circuitSection = rounds.length?`<h2>Circuit</h2>${rounds.map(r=>`<article><h3>${esc(r.id)} — ${esc(r.label||TBC)}</h3><p>Date : ${esc(r.date||'Date à confirmer')} · Vainqueur : ${esc(r.winner||TBC)}</p></article>`).join('')}`:'';
-    const body=`<h1>${esc(e.name)}</h1><p>${esc(info.description||TBC)}</p>
-<h2>Calendrier</h2><ul>${calendar}</ul>${circuitSection}<div id="app" data-slug="${esc(e.slug)}"></div>`;
+    const circuitSection = rounds.length?`<section class="section"><h2>Circuits</h2>${rounds.map(r=>`<article class="content-card"><h3>${esc(r.id)} — ${esc(r.label||TBC)}</h3><p>Date : ${esc(r.date||'Date à confirmer')} · Vainqueur : ${esc(r.winner||TBC)}</p></article>`).join('')}</section>`:'';
+    const body=`<header class="page-title"><p class="eyebrow">Événement GDSP</p><h1>${esc(e.name)}</h1><p class="page-intro">${esc(info.description||TBC)}</p></header>
+<section class="section content-card"><h2>Calendrier</h2><ul>${calendar}</ul></section>${circuitSection}<div id="app" data-slug="${esc(e.slug)}"></div>`;
     res.send(shell({title:`${e.name} — GDSP`,description:info.description||`Classements et résultats : ${e.name}`,canonical:`${siteUrl}/evenements/${e.slug}`,body}));
-  }catch(err){ if(err.status===404) return res.status(404).send(shell({title:'Introuvable — GDSP',description:'',canonical:`${siteUrl}/`,body:'<h1>Événement introuvable</h1>'})); return unavailable(res); } });
+  }catch(err){ if(err.status===404) return res.status(404).send(shell({title:'Introuvable — GDSP',description:'',canonical:`${siteUrl}/`,body:'<header class="page-title"><h1>Événement introuvable</h1></header>'})); return unavailable(res); } });
   app.get('/global',async(req,res)=>{ try{ const rows=await fetchJson(`${backendBase()}/api/global`);
-    const body=`<h1>Classement GLOBAL Discord</h1><table><thead><tr><th>#</th><th>Pilote</th><th>Note /100</th><th>Niveau</th><th>Courses</th></tr></thead><tbody>${
-      rows.map(r=>`<tr><td>${r.position??'—'}</td><td>${esc(r.driverName)}</td><td>${r.score??TBC}</td><td>${esc(r.level)}</td><td>${r.races}</td></tr>`).join('')}</tbody></table>`;
+    const body=`<header class="page-title"><p class="eyebrow">Toute la communauté</p><h1>Classement GLOBAL Discord</h1><p class="page-intro">La note des pilotes GDSP, calculée sur leurs courses, leur régularité et leur fair-play.</p></header><section class="section table-wrap"><table><thead><tr><th>#</th><th>Pilote</th><th>Note /100</th><th>Niveau</th><th>Courses</th></tr></thead><tbody>${
+      rows.map(r=>`<tr><td>${r.position??'—'}</td><td>${esc(r.driverName)}</td><td>${r.score??TBC}</td><td>${esc(r.level)}</td><td>${r.races}</td></tr>`).join('')}</tbody></table></section>`;
     res.send(shell({title:'Classement GLOBAL Discord — GDSP',description:'Classement global GDSP sur 100',canonical:`${siteUrl}/global`,body}));
   }catch{ return unavailable(res); } });
   return app;
