@@ -56,4 +56,10 @@ function seedEvents(){
     points_config:{scale:[25,18,15,12,10,8,6,4,2,1],polePoints:1,coefficient:1,jokers:1,minDistancePercent:75},
     data:{sessions:[],penMap:{},manualDrivers:{},customCalendar:{},eventInfo:{description:'Événement de démonstration — à confirmer'},posterImage:null,galleryImages:[],circuitRounds:[],serversAH:defaultServers()} }];
 }
-module.exports={MemoryStore,PostgresStore,createStore,neonSqlEndpoint,seedEvents};
+/** Initialise une base vide sans jamais écraser les événements existants. */
+async function seedIfEmpty(store){
+  if((await store.listEvents()).length) return false;
+  for(const event of seedEvents()) await store.saveEvent(event);
+  return true;
+}
+module.exports={MemoryStore,PostgresStore,createStore,neonSqlEndpoint,seedEvents,seedIfEmpty};

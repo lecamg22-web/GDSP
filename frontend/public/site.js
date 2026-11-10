@@ -19,7 +19,7 @@ function renderCircuit(round){
   const elev=(round.elevation||[]).map(e=>`${Math.round(e.lapFraction*600)},${Math.round(120-e.altitude)}`).join(' ');
   return `<article class="card"><h3>${esc(round.id)} — ${esc(round.label||TBC)}</h3>
   <p>Date : ${esc(round.date||'Date à confirmer')} · Vainqueur : ${esc(round.winner||TBC)} · Stands : ${esc(round.pitCapacityLabel||TBC)}</p>
-  <svg viewBox="0 0 600 400" role="img" aria-label="Tracé"><path d="${svgPath(round.layout.points)}" fill="none" stroke="#e8c15a" stroke-width="3"/></svg>
+  <svg viewBox="0 0 600 400" role="img" aria-label="Tracé"><path d="${svgPath(round.layout.points)}" fill="none" stroke="#cd9a42" stroke-width="3"/></svg>
   <svg viewBox="0 0 600 140" role="img" aria-label="Profil altimétrique"><polyline points="${elev}" fill="none" stroke="#7ac"/></svg>
   <h4>Virages numérotés</h4><ol>${(round.corners||[]).map(c=>`<li>Virage ${c.number} — fraction de tour ${c.lapFraction}</li>`).join('')||`<li>${TBC}</li>`}</ol>
   <h4>Secteurs</h4><ul>${sectors||`<li>${TBC}</li>`}</ul><h4>Surfaces</h4><ul>${surfaces||`<li>${TBC}</li>`}</ul></article>`;

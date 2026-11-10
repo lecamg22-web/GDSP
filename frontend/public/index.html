@@ -6,16 +6,33 @@
 <title>GDSP — Gentleman Drivers Project</title>
 <meta name="description" content="Classements, résultats et statistiques des championnats Assetto Corsa historiques GDSP.">
 <style>
-:root{color-scheme:dark}body{font-family:system-ui,sans-serif;background:#111;color:#eee;margin:0}
-header,main{max-width:1000px;margin:auto;padding:1rem}a{color:#e8c15a}nav button{margin:.2rem;padding:.45rem .8rem}
-table{border-collapse:collapse;width:100%}td,th{border:1px solid #444;padding:.35rem .6rem;text-align:left}
-section[hidden]{display:none}.card{border:1px solid #333;padding:1rem;margin:.5rem 0}
+:root{--ink:#102a32;--cream:#f4ecd8;--paper:#f8f2e4;--red:#9c3021;--red2:#a33426;--gold:#cd9a42;--gold2:#d7a347;--line:#bdb09a;--green:#3b6341;--grey:#6d726c}
+*{box-sizing:border-box}
+body{margin:0;background:#e9e0cb;color:var(--ink);font-family:Arial,sans-serif}
+header{background:var(--ink);color:var(--cream);border-bottom:5px solid var(--red2);padding:1rem}
+header a{color:var(--gold2)}
+main{max-width:1100px;margin:auto;padding:1rem}
+h1,h2,h3{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;letter-spacing:.7px;font-weight:normal;color:var(--ink)}
+h1{border-bottom:3px solid var(--gold)}
+a{color:var(--red)}
+nav button{background:none;border:0;border-bottom:3px solid transparent;color:var(--ink);font-size:13px;font-weight:bold;letter-spacing:1.2px;cursor:pointer;padding:10px 6px;text-transform:uppercase}
+nav button:hover,nav button.active{border-bottom-color:var(--red);color:var(--red)}
+table{border-collapse:collapse;width:100%;background:var(--paper);border-top:3px solid var(--ink)}
+th{background:var(--ink);color:var(--cream);font-family:'Arial Narrow',Arial,sans-serif;text-transform:uppercase;letter-spacing:1px}
+td,th{border:1px solid var(--line);padding:.35rem .6rem;text-align:left}
+tr:nth-child(even) td{background:#efe6d0}
+.card{background:var(--paper);border:1px solid var(--line);border-left:5px solid var(--gold);padding:1rem;margin:.5rem 0}
+input,select,textarea{background:#fbf7ec;border:1px solid var(--line);color:var(--ink);padding:.4rem}
+button{cursor:pointer}
+section[hidden]{display:none}
+.tagline{font-family:Impact,'Arial Narrow',sans-serif;text-transform:uppercase;color:var(--red);letter-spacing:1px}
 </style>
 </head>
 <body>
-<header><strong>Gentleman Drivers Project</strong> — simracing historique</header>
+<header><strong>GENTLEMAN&nbsp;&nbsp;DRIVERS&nbsp;&nbsp;PROJECT</strong> — <span class="tagline">La piste, entre gentlemen</span></header>
 <main id="app">
-  <h1>Gentleman Drivers Project</h1>
+  <h1>La piste, entre gentlemen.</h1>
+  <p class="tagline">Compétition le mercredi. Arsouille entre copains toujours.</p>
   <p>Championnats et opens Assetto Corsa vintage. Toute donnée absente est affichée « à confirmer ».</p>
   <nav id="tabs" aria-label="Onglets événement">
     <button data-tab="infos">Accueil &amp; Infos</button><button data-tab="standings">Classements</button>

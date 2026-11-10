@@ -12,7 +12,7 @@ const {parseSurfaces,parseSectors,validateSectors}=require('../tools/lib/modFile
 const {parseDriveFolderHtml,pickCircuitFiles,extractFolderId}=require('../tools/lib/drive');
 const {buildCircuitRound}=require('../backend/lib/circuit');
 const {createApp}=require('../backend/app');
-const {MemoryStore}=require('../backend/lib/store');
+const {MemoryStore,seedIfEmpty}=require('../backend/lib/store');
 const {createFrontendApp}=require('../frontend/app');
 
 const GUID='76561198000000001';
@@ -106,6 +106,26 @@ test('.gitignore: aucun motif lib/ non ancré (tools/lib ne doit pas être aval�
   const lines=fs.readFileSync(path.join(__dirname,'..','.gitignore'),'utf8').split(/\r?\n/).map(l=>l.trim()).filter(l=>l&&!l.startsWith('#'));
   assert.ok(!lines.includes('lib/')&&!lines.includes('lib'), lines.join(','));
   assert.ok(fs.existsSync(path.join(__dirname,'..','tools','lib','fastLane.js')));
+});
+test('persistance: une base vide reçoit la démo, une base existante reste intacte',async()=>{
+  const empty=new MemoryStore([]);
+  assert.equal(await seedIfEmpty(empty),true);
+  assert.equal((await empty.listEvents())[0].slug,'championnat-exemple');
+  assert.equal(await seedIfEmpty(empty),false);
+  const existing=new MemoryStore([{slug:'reel',name:'Championnat réel',kind:'open',data:{sessions:[]}}]);
+  assert.equal(await seedIfEmpty(existing),false);
+  assert.deepEqual((await existing.listEvents()).map(e=>e.slug),['reel']);
+});
+test('thème vintage: appliqué au SSR et à l’interface applicative',async()=>{
+  const app=createFrontendApp({fetchJson:async url=>url.endsWith('/api/stats')
+    ?{events:0,races:0,drivers:0}:[]});
+  const home=await http(app,'GET','/');
+  assert.match(home.body,/--ink:#102a32/);
+  assert.match(home.body,/background:#e9e0cb/);
+  assert.match(home.body,/La piste, entre gentlemen/);
+  const html=fs.readFileSync(path.join(__dirname,'..','frontend','public','index.html'),'utf8');
+  assert.match(html,/--gold:#cd9a42/);
+  assert.doesNotMatch(html,/color-scheme:dark/);
 });
 async function http(app,method,url,body,headers={}){
   const srv=app.listen(0); await new Promise(r=>srv.once('listening',r));
