@@ -177,8 +177,9 @@ test('API: health, événements, admin protégé, import anonymisé',async()=>{
   const imp=await http(app,'POST','/api/admin/events/open-1/import',{payloads:[{Date:'2026-02-01T20:00:00',Type:'RACE',Track:'Monza',Results:[{DriverGuid:GUID,DriverName:'Bob',Position:1}]}]}, {Authorization:`Bearer ${login.body.token}`});
   assert.equal(imp.body.added,1);
   const got=await http(app,'GET','/api/events/open-1'); assert.doesNotMatch(JSON.stringify(got.body),/7656119/);
-  assert.equal(got.body.data.sessions.length,0); // imported does not mean published
-  assert.equal('pendingSessions' in got.body.data,false); // private Commission drafts
+  assert.equal(got.body.data.sessions.length,1); // les Opens sont publiés directement, sans Commission
+  assert.equal(got.body.data.circuitRounds[0].label,'Monza');
+  assert.equal('pendingSessions' in got.body.data,false);
 });
 test('Commission: import privé, correction, publication puis calcul du classement',async()=>{
   process.env.ADMIN_USERNAME='admin'; process.env.ADMIN_PASSWORD='secret';
@@ -192,7 +193,7 @@ test('Commission: import privé, correction, publication puis calcul du classeme
   const qualify={Date:'2026-04-01T19:00:00',Type:'QUALIFY',Track:'Monza',Results:race.Results};
   assert.equal((await http(app,'GET','/api/admin/events/commission/commission')).status,401);
   const imported=await http(app,'POST','/api/admin/events/commission/import',{payloads:[race,qualify]},H);
-  assert.deepEqual(imported.body,{added:2,duplicates:0});
+  assert.deepEqual(imported.body,{added:2,duplicates:0,published:false});
   assert.equal((await http(app,'GET','/api/events/commission/standings')).body.length,0);
   assert.equal((await http(app,'GET','/api/stats')).body.races,0);
   const drafts=await http(app,'GET','/api/admin/events/commission/commission',null,H);
@@ -210,7 +211,7 @@ test('Commission: import privé, correction, publication puis calcul du classeme
   assert.equal(standings.body[0].driverName,'Bob'); assert.equal(standings.body[0].total,25);
   assert.equal((await http(app,'GET','/api/stats')).body.races,1);
   const duplicate=await http(app,'POST','/api/admin/events/commission/import',{payloads:[race,qualify]},H);
-  assert.deepEqual(duplicate.body,{added:0,duplicates:2});
+  assert.deepEqual(duplicate.body,{added:0,duplicates:2,published:false});
   assert.equal((await http(app,'DELETE','/api/admin/events/commission/commission/0',null,H)).status,200);
   assert.equal((await http(app,'GET','/api/admin/events/commission/commission',null,H)).body.pendingSessions.length,0);
 });
@@ -349,6 +350,28 @@ test('import autonome: événement créé, brouillon privé, archivage et réouv
   assert.equal(await store.getEvent('mini-cup-ete-2'),null);
   const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
   assert.match(js,/Créer l’événement et importer/); assert.match(js,/data-archive=/); assert.match(js,/data-reopen=/); assert.match(js,/data-delete=/);
+});
+test('manches chronologiques, barème importé et médias protégés',async()=>{
+  process.env.ADMIN_USERNAME='admin'; process.env.ADMIN_PASSWORD='secret';
+  const raw={ID:'rounds',Name:'Open circuits',Classes:[{Points:[30,24,20]}],Events:[{Sessions:[
+    {Type:'RACE',Date:'2026-02-02T21:00:00',Track:'ks_brands_hatch',Result:[{DriverGuid:GUID,DriverName:'Alice',Position:1}]},
+    {Type:'QUALIFY',Date:'2026-02-02T20:00:00',Track:'ks_brands_hatch',Result:[]},
+    {Type:'RACE',Date:'2026-01-01T21:00:00',Track:'magny-cours',Result:[{DriverGuid:GUID,DriverName:'Alice',Position:1}]}]}]};
+  const store=new MemoryStore([]), app=createApp(store,{fetchJson:async()=>raw});
+  const login=await http(app,'POST','/api/admin/login',{username:'admin',password:'secret'}), H={Authorization:`Bearer ${login.body.token}`};
+  const created=await http(app,'POST','/api/admin/assettohosting/championships/import',{championshipUrl:'https://fr2.assettohosting.com:50648/championship/rounds',kind:'open'},H);
+  assert.equal(created.body.published,true);
+  const saved=await store.getEvent('open-circuits');
+  assert.deepEqual(saved.points_config.scale,[30,24,20]);
+  assert.deepEqual(saved.data.sessions.filter(s=>s.type==='RACE').map(s=>s.label),['Manche 2','Manche 1']); // l'ordre source est conservé, les numéros suivent les dates
+  assert.equal(saved.data.sessions.find(s=>s.type==='QUALIFY').label,'Manche 2');
+  assert.equal(saved.data.circuitRounds[0].track.name,'Magny Cours');
+  const image='data:image/png;base64,iVBORw0KGgo=';
+  assert.equal((await http(app,'PUT','/api/admin/events/open-circuits/media',{posterImage:image,galleryImages:[image]},H)).status,200);
+  assert.equal((await store.getEvent('open-circuits')).data.galleryImages.length,1);
+  assert.equal((await http(app,'PUT','/api/admin/events/open-circuits/media',{posterImage:'https://externe.invalid/a.jpg'},H)).status,400);
+  const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
+  assert.match(js,/Barème de points/); assert.match(js,/event-gallery/); assert.match(js,/event-poster/);
 });
 test('format RÉEL AssettoHosting: Result singulier, temps en ms, distance via NumLaps, collisions imbriquées',()=>{
   const raw={Version:7, Type:'RACE', Date:'2026-11-04T22:42:00+01:00', TrackName:'6thgpmexico67', TrackConfig:'gp',

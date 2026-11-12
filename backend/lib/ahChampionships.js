@@ -45,9 +45,17 @@ async function listChampionships(url=DEFAULT_CHAMPIONSHIPS_URL,opts={}){
   const indexUrl=championshipsIndexUrl(url), html=await (opts.fetchText||fetchText)(indexUrl);
   return parseChampionshipsHtml(html,indexUrl);
 }
+function extractPointsConfig(raw){
+  const candidates=[raw.Points,raw.RacePoints,raw.PointsConfig,...(Array.isArray(raw.Classes)?raw.Classes.flatMap(c=>[c.Points,c.RacePoints,c.PointsConfig]):[])];
+  const value=candidates.find(v=>Array.isArray(v)||v&&typeof v==='object'); if(!value) return null;
+  const source=Array.isArray(value)?{scale:value}:value;
+  const scale=(source.scale||source.Scale||source.Points||[]).map(Number).filter(Number.isFinite);
+  if(!scale.length) return null;
+  return {scale,polePoints:Number(source.polePoints??source.PolePoints??0)||0,coefficient:Number(source.coefficient??source.Coefficient??1)||1,jokers:0,minDistancePercent:75};
+}
 async function readChampionship(url,opts={}){
   const target=championshipExportUrl(url), raw=await (opts.fetchJson||fetchJson)(target.exportUrl);
   return {championship:{id:raw.ID||target.id,name:raw.Name||'Championnat AssettoHosting',url:target.url,exportUrl:target.exportUrl,
-    updated:raw.Updated||null,progress:raw.Stats?.Progress??null,eventCount:raw.Stats?.NumEvents??null},payloads:extractChampionshipSessions(raw)};
+    updated:raw.Updated||null,progress:raw.Stats?.Progress??null,eventCount:raw.Stats?.NumEvents??null},payloads:extractChampionshipSessions(raw),pointsConfig:extractPointsConfig(raw)};
 }
-module.exports={DEFAULT_CHAMPIONSHIPS_URL,championshipsIndexUrl,championshipExportUrl,parseChampionshipsHtml,extractChampionshipSessions,listChampionships,readChampionship};
+module.exports={DEFAULT_CHAMPIONSHIPS_URL,championshipsIndexUrl,championshipExportUrl,parseChampionshipsHtml,extractChampionshipSessions,extractPointsConfig,listChampionships,readChampionship};
