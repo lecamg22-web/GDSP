@@ -305,3 +305,7 @@ button:disabled { cursor: not-allowed; opacity: .5; }
   [data-pending-card] tr[data-pending-result] { grid-template-columns: 1fr; }
   [data-pending-card] td:nth-child(2) { grid-column: auto; }
 }
+.event-admin { display:flex; align-items:center; justify-content:space-between; gap:16px; }
+.event-admin-actions { display:flex; flex-wrap:wrap; gap:8px; }
+button.danger { background:var(--red); color:var(--paper); }
+@media (max-width:580px) { .event-admin { align-items:stretch; flex-direction:column; } .event-admin-actions button { flex:1; } }

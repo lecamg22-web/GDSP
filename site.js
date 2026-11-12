@@ -145,36 +145,47 @@ async function renderCommission(){
   $$('[data-del-pen]').forEach(b=>b.addEventListener('click',async()=>{ const [k,d]=b.dataset.delPen.split('|');
     await adminApi(`/api/admin/events/${slug}/penalties`,{method:'DELETE',body:JSON.stringify({sessionKey:k,driverId:d})}); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); }));
 }
-function renderAdmin(){
-  if(!currentEvent||!token()) return; $('#admin-body').hidden=false;
-  const ev=currentEvent, slug=currentSlug, drivers=allDrivers();
-  // Imports: unitaire ou en masse, fichiers JSON AssettoHosting
-  $('[data-apanel="imports"]').innerHTML=`<h3>Imports de résultats</h3>
-    <p>Les fichiers RACE et QUALIFY arrivent d’abord dans la <strong>Commission de course</strong>. Rien n’est publié ni comptabilisé avant validation.</p>
-    <input type="file" id="imp-files" accept=".json" multiple><button id="imp-go">Envoyer à la Commission</button>
-    <button id="imp-scan">Scanner les serveurs AssettoHosting configurés</button>
-    <section class="card championship-import"><h3>Importer un championnat AssettoHosting</h3>
-      <label for="ah-championships-url">Page des championnats</label>
+function renderImports(){
+  $('[data-apanel="imports"]').innerHTML=`<h3>Nouvel événement depuis AssettoHosting</h3>
+    <p>L’événement est créé automatiquement avec son nom et son adresse. Les résultats restent privés dans la Commission jusqu’à votre validation.</p>
+    <section class="card championship-import"><label for="ah-championships-url">Page des championnats</label>
       <input id="ah-championships-url" type="url" value="https://fr2.assettohosting.com:50648/championships">
       <button id="ah-list">Charger les championnats</button>
-      <div id="ah-choice" hidden><label for="ah-championship">Championnat à importer dans « ${esc(ev.name)} »</label>
-        <select id="ah-championship"></select><button id="ah-import">Importer vers la Commission</button></div>
-      <p id="ah-status" role="status"></p></section>`;
-  $('#imp-go').addEventListener('click',async()=>{ const files=[...$('#imp-files').files];
-    const payloads=[]; for(const f of files) payloads.push(JSON.parse(await f.text()));
-    const r=await adminApi(`/api/admin/events/${slug}/import`,{method:'POST',body:JSON.stringify({payloads})});
-    status(`${r.added} session(s) envoyée(s) à la Commission, ${r.duplicates} doublon(s) écarté(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
-  $('#imp-scan').addEventListener('click',async()=>{ const r=await adminApi(`/api/admin/events/${slug}/servers/scan`,{method:'POST',body:'{}'});
-    status(`Scan AH : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
-  $('#ah-list').addEventListener('click',async()=>{ const message=$('#ah-status'); message.textContent='Chargement des championnats…';
+      <div id="ah-choice" hidden><label for="ah-championship">Championnat à importer</label><select id="ah-championship"></select>
+        <label for="ah-kind">Section Événements</label><select id="ah-kind"><option value="championship">Championnat</option><option value="cup">Cup — mini-championnat</option><option value="open">Open</option></select>
+        <button id="ah-import">Créer l’événement et importer</button></div><p id="ah-status" role="status"></p></section>
+    ${currentEvent?`<section class="section"><h3>Ajouter des fichiers à « ${esc(currentEvent.name)} »</h3>
+      <input type="file" id="imp-files" accept=".json" multiple><button id="imp-go">Envoyer à la Commission</button></section>`:''}`;
+  $('#ah-list').onclick=async()=>{ const message=$('#ah-status'); message.textContent='Chargement…';
     try{ const list=await adminApi(`/api/admin/assettohosting/championships?url=${encodeURIComponent($('#ah-championships-url').value)}`);
       $('#ah-championship').innerHTML=list.map(c=>`<option value="${esc(c.url)}">${esc(c.name)} — ${c.eventCount} manche(s), ${Math.round(c.progress)}%</option>`).join('');
-      $('#ah-choice').hidden=!list.length; message.textContent=list.length?`${list.length} championnat(s) trouvé(s)`:'Aucun championnat trouvé';
-    }catch(e){ message.textContent=`Import impossible : ${e.message}`; } });
-  $('#ah-import').addEventListener('click',async()=>{ const message=$('#ah-status'); message.textContent='Lecture de l’export et anonymisation…';
-    try{ const r=await adminApi(`/api/admin/events/${slug}/import/championship`,{method:'POST',body:JSON.stringify({championshipUrl:$('#ah-championship').value})});
-      status(`${r.championship.name} : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission');
-    }catch(e){ message.textContent=`Import impossible : ${e.message}`; } });
+      $('#ah-choice').hidden=!list.length; message.textContent=`${list.length} championnat(s) trouvé(s)`;
+    }catch(e){ message.textContent=`Import impossible : ${e.message}`; } };
+  $('#ah-import').onclick=async()=>{ const message=$('#ah-status'); message.textContent='Création, import et anonymisation…';
+    try{ const r=await adminApi('/api/admin/assettohosting/championships/import',{method:'POST',body:JSON.stringify({championshipUrl:$('#ah-championship').value,kind:$('#ah-kind').value})});
+      status(`${r.event.name} créé : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`);
+      await loadEvent(r.event.slug); renderAdmin(); showAdminTab('commission');
+    }catch(e){ message.textContent=`Import impossible : ${e.message}`; } };
+  $('#imp-go')?.addEventListener('click',async()=>{ const payloads=[]; for(const f of $('#imp-files').files) payloads.push(JSON.parse(await f.text()));
+    const r=await adminApi(`/api/admin/events/${currentSlug}/import`,{method:'POST',body:JSON.stringify({payloads})});
+    status(`${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadEvent(currentSlug); renderAdmin(); showAdminTab('commission'); });
+}
+async function renderEventManagement(){
+  const events=await api('/api/events'), labels={championship:'Championnat',cup:'Cup',open:'Open',archive:'Archive'};
+  $('[data-apanel="evenements"]').innerHTML=`<h3>Gestion des événements</h3><p>Archiver conserve tous les résultats. Réouvrir replace l’événement dans sa section d’origine.</p>`+
+    (events.map(e=>`<article class="card event-admin"><div><strong>${esc(e.name)}</strong><br><small>${labels[e.kind]} · ${esc(e.slug)}</small></div><div class="event-admin-actions">
+      ${e.kind==='archive'?`<button data-reopen="${esc(e.slug)}">Réouvrir</button>`:`<button data-archive="${esc(e.slug)}">Archiver</button>`}
+      <button class="danger" data-delete="${esc(e.slug)}" data-name="${esc(e.name)}">Supprimer</button></div></article>`).join('')||'<p>Aucun événement.</p>');
+  $$('[data-archive]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.archive}/kind`,{method:'PUT',body:JSON.stringify({kind:'archive'})}); status('Événement archivé'); await renderEventManagement(); });
+  $$('[data-reopen]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.reopen}/kind`,{method:'PUT',body:JSON.stringify({reopen:true})}); status('Événement rouvert'); await renderEventManagement(); });
+  $$('[data-delete]').forEach(b=>b.onclick=async()=>{ if(!confirm(`Supprimer définitivement « ${b.dataset.name} » et tous ses résultats ?`)) return;
+    await adminApi(`/api/admin/events/${b.dataset.delete}`,{method:'DELETE'}); if(currentSlug===b.dataset.delete){ currentEvent=null; currentSlug=null; } status('Événement supprimé'); await renderEventManagement(); });
+}
+function renderAdmin(){
+  if(!token()) return; $('#admin-body').hidden=false; renderImports(); renderEventManagement().catch(e=>status(e.message));
+  if(!currentEvent) { $$('#atabs button').forEach(b=>b.onclick=()=>showAdminTab(b.dataset.atab)); return; }
+  const ev=currentEvent, slug=currentSlug, drivers=allDrivers();
+  // Les imports directs sont indépendants de l'événement courant (renderImports).
   // Manches
   $('[data-apanel="manches"]').innerHTML=`<h3>Manches (onglet Circuit)</h3>`+
     ((ev.data.circuitRounds||[]).map(r=>`<div class="card">${esc(r.id)} — ${esc(r.label||TBC)} · ${esc(r.date||'Date à confirmer')}
@@ -199,13 +210,7 @@ function renderAdmin(){
   $('#data-go').addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}`,{method:'PUT',body:$('#data-import').value});
     status('Données réimportées'); await loadEvent(slug); renderAdmin(); });
   $('#data-del').addEventListener('click',async()=>{ if(confirm('Supprimer cet événement ?')){ await adminApi(`/api/admin/events/${slug}`,{method:'DELETE'}); status('Événement supprimé'); } });
-  // Événements
-  $('[data-apanel="evenements"]').innerHTML=`<h3>Événements</h3>
-    <input id="ev-slug" placeholder="slug"><input id="ev-name" placeholder="Nom">
-    <select id="ev-kind"><option value="championship">Championnat</option><option value="cup">Cup — mini-championnat</option><option value="open">Open</option><option value="archive">Archive</option></select>
-    <button id="ev-go">Créer</button>`;
-  $('#ev-go').addEventListener('click',async()=>{ await adminApi('/api/admin/events',{method:'POST',
-    body:JSON.stringify({slug:$('#ev-slug').value,name:$('#ev-name').value,kind:$('#ev-kind').value})}); status('Événement créé'); });
+  // La création et la gestion des événements sont globales (renderEventManagement).
   // Serveurs AH
   const servers=ev.data.serversAH||[];
   $('[data-apanel="serveurs"]').innerHTML=`<h3>Serveurs AssettoHosting</h3>`+servers.map((s,i)=>
