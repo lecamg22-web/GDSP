@@ -313,3 +313,50 @@ button.danger { background:var(--red); color:var(--paper); }
 .event-gallery { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:14px; }
 .event-gallery img { width:100%; aspect-ratio:4/3; object-fit:cover; border:1px solid var(--line); }
 .event-media { flex-basis:100%; display:grid; gap:10px; }
+/* Pages événement : lecture éditoriale et hiérarchie compacte */
+.event-header { display:grid; grid-template-columns:minmax(0,1fr) auto; gap:32px; align-items:center; padding:36px 0 28px; border-bottom:3px double var(--gold); }
+.event-header h1 { max-width:1000px; margin:8px 0 12px; font-size:clamp(2.2rem,5vw,4.8rem); line-height:.98; overflow-wrap:anywhere; }
+.event-header .event-poster { width:220px; max-height:300px; margin:0; object-fit:cover; }
+.event-meta { color:var(--muted); font-weight:600; }
+.event-block, [data-panel] > section, [data-panel] > details { margin:28px 0; }
+.block-heading { margin-bottom:16px; }
+.block-heading h2 { margin:2px 0 0; }
+.block-heading .eyebrow { margin:0; }
+.round-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(270px,1fr)); gap:14px; }
+.round-card { padding:18px; background:var(--paper); border:1px solid var(--line); border-top:3px solid var(--gold); }
+.round-heading { display:flex; flex-direction:column; gap:4px; margin-bottom:12px; }
+.round-heading span { color:var(--red); font-size:.75rem; font-weight:800; letter-spacing:.08em; text-transform:uppercase; }
+.round-heading strong { font-size:1.15rem; }
+.round-card dl { margin:0; }
+.round-card dl div { display:grid; grid-template-columns:minmax(90px,.8fr) 1.4fr; gap:10px; padding:7px 0; border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent); }
+.round-card dt { color:var(--muted); font-size:.78rem; }
+.round-card dd { margin:0; font-size:.85rem; font-weight:600; }
+.points-scale { display:grid; grid-template-columns:repeat(auto-fit,minmax(64px,1fr)); gap:7px; }
+.points-scale > div { display:flex; flex-direction:column; align-items:center; padding:12px 5px; background:var(--paper); border:1px solid var(--line); }
+.points-scale span { color:var(--red); font-size:.72rem; font-weight:800; }
+.points-scale strong { font-size:1.5rem; }
+.points-scale small { color:var(--muted); }
+.points-bonuses { display:flex; flex-wrap:wrap; gap:8px; margin-top:12px; }
+.points-bonuses span { padding:8px 12px; background:color-mix(in srgb,var(--gold) 12%,var(--paper)); border:1px solid var(--line); font-size:.82rem; }
+.insight-grid { display:grid; grid-template-columns:repeat(4,1fr); gap:10px; }
+.insight-grid div { padding:18px 10px; text-align:center; background:var(--paper); border:1px solid var(--line); }
+.insight-grid strong { display:block; color:var(--red); font-size:1.8rem; }
+.insight-grid span { color:var(--muted); font-size:.75rem; text-transform:uppercase; letter-spacing:.06em; }
+.fairplay-line { padding-top:12px; border-top:1px solid var(--line); }
+.duel-panel { padding:18px; background:var(--paper); border:1px solid var(--line); }
+.duel-panel summary { cursor:pointer; color:var(--red); font-weight:800; }
+.duel-selects { display:flex; gap:10px; margin:16px 0; }
+#race-select { width:min(100%,650px); }
+.race-summary { margin:18px 0; padding:16px; border-left:3px solid var(--gold); background:var(--paper); }
+[data-panel="standings"] table td:first-child, #race-detail table td:first-child { color:var(--red); font-weight:800; }
+@media (max-width:700px) {
+  .event-header { grid-template-columns:1fr; gap:16px; padding-top:24px; }
+  .event-header h1 { font-size:clamp(2rem,11vw,3.3rem); }
+  .event-header .event-poster { width:100%; max-height:420px; object-fit:contain; }
+  .insight-grid { grid-template-columns:repeat(2,1fr); }
+  .duel-selects { flex-direction:column; }
+  .points-scale { grid-template-columns:repeat(5,1fr); }
+  .points-scale > div { padding:8px 2px; }
+  .points-scale strong { font-size:1.15rem; }
+  #race-detail table { min-width:620px; }
+}
