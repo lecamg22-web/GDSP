@@ -70,6 +70,16 @@ des virgules). Format réel validé le 10/11/2026 sur les deux serveurs :
 en millisecondes, distance déduite de `NumLaps`, collisions imbriquées
 `{Driver:{Guid}}` anonymisées à l'import.
 
+## Import direct des championnats AssettoHosting
+
+L'onglet **Imports** charge la liste HTML de `/championships` (par défaut GDSP #1), avec progression,
+nombre de manches et d'inscrits. Après sélection, le backend télécharge uniquement l'URL
+`/championship/<id>/export` correspondante et recherche récursivement les sessions RACE/QUALIFY dans
+cette exportation complète. Elles sont normalisées, pseudonymisées et envoyées dans `pendingSessions` :
+aucune publication n'a lieu sans validation dans **Commission**. Les inscrits et leurs GUID Steam ne
+sont jamais persistés ; seules des métadonnées sûres du championnat (ID, nom, URL, progression) sont
+associées à l'événement GDSP. Les doublons sont contrôlés contre les brouillons et les sessions publiées.
+
 ## Variables d'environnement
 
 - Backend : `PORT`, `DATABASE_URL` (Neon/PostgreSQL ; absent = mémoire), `NEON_API_KEY` (optionnel),

@@ -152,13 +152,29 @@ function renderAdmin(){
   $('[data-apanel="imports"]').innerHTML=`<h3>Imports de résultats</h3>
     <p>Les fichiers RACE et QUALIFY arrivent d’abord dans la <strong>Commission de course</strong>. Rien n’est publié ni comptabilisé avant validation.</p>
     <input type="file" id="imp-files" accept=".json" multiple><button id="imp-go">Envoyer à la Commission</button>
-    <button id="imp-scan">Scanner les serveurs AssettoHosting configurés</button>`;
+    <button id="imp-scan">Scanner les serveurs AssettoHosting configurés</button>
+    <section class="card championship-import"><h3>Importer un championnat AssettoHosting</h3>
+      <label for="ah-championships-url">Page des championnats</label>
+      <input id="ah-championships-url" type="url" value="https://fr2.assettohosting.com:50648/championships">
+      <button id="ah-list">Charger les championnats</button>
+      <div id="ah-choice" hidden><label for="ah-championship">Championnat à importer dans « ${esc(ev.name)} »</label>
+        <select id="ah-championship"></select><button id="ah-import">Importer vers la Commission</button></div>
+      <p id="ah-status" role="status"></p></section>`;
   $('#imp-go').addEventListener('click',async()=>{ const files=[...$('#imp-files').files];
     const payloads=[]; for(const f of files) payloads.push(JSON.parse(await f.text()));
     const r=await adminApi(`/api/admin/events/${slug}/import`,{method:'POST',body:JSON.stringify({payloads})});
     status(`${r.added} session(s) envoyée(s) à la Commission, ${r.duplicates} doublon(s) écarté(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
   $('#imp-scan').addEventListener('click',async()=>{ const r=await adminApi(`/api/admin/events/${slug}/servers/scan`,{method:'POST',body:'{}'});
     status(`Scan AH : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
+  $('#ah-list').addEventListener('click',async()=>{ const message=$('#ah-status'); message.textContent='Chargement des championnats…';
+    try{ const list=await adminApi(`/api/admin/assettohosting/championships?url=${encodeURIComponent($('#ah-championships-url').value)}`);
+      $('#ah-championship').innerHTML=list.map(c=>`<option value="${esc(c.url)}">${esc(c.name)} — ${c.eventCount} manche(s), ${Math.round(c.progress)}%</option>`).join('');
+      $('#ah-choice').hidden=!list.length; message.textContent=list.length?`${list.length} championnat(s) trouvé(s)`:'Aucun championnat trouvé';
+    }catch(e){ message.textContent=`Import impossible : ${e.message}`; } });
+  $('#ah-import').addEventListener('click',async()=>{ const message=$('#ah-status'); message.textContent='Lecture de l’export et anonymisation…';
+    try{ const r=await adminApi(`/api/admin/events/${slug}/import/championship`,{method:'POST',body:JSON.stringify({championshipUrl:$('#ah-championship').value})});
+      status(`${r.championship.name} : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadEvent(slug); renderAdmin(); showAdminTab('commission');
+    }catch(e){ message.textContent=`Import impossible : ${e.message}`; } });
   // Manches
   $('[data-apanel="manches"]').innerHTML=`<h3>Manches (onglet Circuit)</h3>`+
     ((ev.data.circuitRounds||[]).map(r=>`<div class="card">${esc(r.id)} — ${esc(r.label||TBC)} · ${esc(r.date||'Date à confirmer')}
