@@ -11,11 +11,12 @@ const {buildCircuitRound}=require('./lib/circuit');
 const {listDriveFolder,pickCircuitFiles,downloadUrl,fetchBuffer,fetchText}=require('../tools/lib/drive');
 const {scanServer}=require('./lib/ahServers');
 const {listChampionships,readChampionship}=require('./lib/ahChampionships');
+const {cleanEventName,calendar,eventInsights}=require('./lib/eventPresentation');
 const EVENT_KINDS=['championship','cup','open','archive'];
 function blankData(){ return {sessions:[],pendingSessions:[],penMap:{},manualDrivers:{},customCalendar:{},eventInfo:{},posterImage:null,galleryImages:[],circuitRounds:[],serversAH:[],championshipAH:null}; }
 function publicEvent(event){
   const {pendingSessions,...publishedData}=event.data||{}; // drafts stay private to the Commission
-  return {...event,data:publishedData};
+  return {...event,name:cleanEventName(event.name),data:{...publishedData,autoCalendar:calendar({...event,data:publishedData})}};
 }
 function stagePayloads(event,payloads){
   const published=event.data.sessions||[], pending=event.data.pendingSessions||[];
@@ -45,9 +46,10 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
   app.use(express.json({limit:'25mb'}));
   app.get('/api/health',(req,res)=>res.json({ok:true,service:'gdsp-backend'}));
   app.get('/api/events',async(req,res,next)=>{ try{ const events=await store.listEvents();
-    res.json(events.map(({slug,name,kind,points_config})=>({slug,name,kind,points_config}))); }catch(e){next(e);} });
+    res.json(events.map(({slug,name,kind,points_config})=>({slug,name:cleanEventName(name),kind,points_config}))); }catch(e){next(e);} });
   app.get('/api/events/:slug',async(req,res,next)=>{ try{ const e=await store.getEvent(req.params.slug);
     if(!e) return res.status(404).json({error:'Événement introuvable'}); assertNoGuid(e); res.json(publicEvent(e)); }catch(e){next(e);} });
+  app.get('/api/events/:slug/insights',async(req,res,next)=>{ try{ const e=await store.getEvent(req.params.slug); if(!e)return res.status(404).json({error:'Événement introuvable'}); res.json(eventInsights(e)); }catch(e){next(e);} });
   app.get('/api/events/:slug/standings',async(req,res,next)=>{ try{ const e=await store.getEvent(req.params.slug);
     if(!e) return res.status(404).json({error:'Événement introuvable'}); res.json(computeStandings(e)); }catch(e){next(e);} });
   app.get('/api/events/:slug/drivers/:driverId',async(req,res,next)=>{ try{ const e=await store.getEvent(req.params.slug);
@@ -74,7 +76,7 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     const events=await store.listEvents();
     const base=(championship.name||'championnat').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'championnat';
     let slug=base, n=2; while(events.some(e=>e.slug===slug)) slug=`${base}-${n++}`;
-    const event=validateEvent({slug,name:championship.name,kind,points_config:pointsConfig});
+    const event=validateEvent({slug,name:cleanEventName(championship.name),kind,points_config:pointsConfig});
     event.data.championshipAH=championship;
     const result=stagePayloads(event,payloads);
     await store.saveEvent(event);
