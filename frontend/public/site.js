@@ -19,8 +19,8 @@ function renderCircuit(round){
   const elev=(round.elevation||[]).map(e=>`${Math.round(e.lapFraction*600)},${Math.round(120-e.altitude)}`).join(' ');
   return `<article class="card"><h3>${esc(round.id)} — ${esc(round.label||TBC)}</h3>
   <p>Date : ${esc(round.date||'Date à confirmer')} · Vainqueur : ${esc(round.winner||TBC)} · Stands : ${esc(round.pitCapacityLabel||TBC)}</p>
-  <svg viewBox="0 0 600 400" role="img" aria-label="Tracé"><path d="${svgPath(round.layout.points)}" fill="none" stroke="#cd9a42" stroke-width="3"/></svg>
-  <svg viewBox="0 0 600 140" role="img" aria-label="Profil altimétrique"><polyline points="${elev}" fill="none" stroke="#7ac"/></svg>
+  ${round.layout?.points?.length?`<svg viewBox="0 0 600 400" role="img" aria-label="Tracé"><path d="${svgPath(round.layout.points)}" fill="none" stroke="#cd9a42" stroke-width="3"/></svg>
+  <svg viewBox="0 0 600 140" role="img" aria-label="Profil altimétrique"><polyline points="${elev}" fill="none" stroke="#7ac"/></svg>`:'<p>Tracé technique à confirmer.</p>'}
   <h4>Virages numérotés</h4><ol>${(round.corners||[]).map(c=>`<li>Virage ${c.number} — fraction de tour ${c.lapFraction}</li>`).join('')||`<li>${TBC}</li>`}</ol>
   <h4>Secteurs</h4><ul>${sectors||`<li>${TBC}</li>`}</ul><h4>Surfaces</h4><ul>${surfaces||`<li>${TBC}</li>`}</ul></article>`;
 }
@@ -32,9 +32,10 @@ async function loadEvent(slug){
   const info=event.data.eventInfo||{}; // strictly this event's labels — no cross-event leakage
   $('[data-panel="infos"]').innerHTML=`<h2>${esc(event.name)}</h2><p>${esc(info.description||TBC)}</p>
     ${info.plateau?`<p>Plateau : ${esc(info.plateau)}</p>`:''}
-    ${event.data.posterImage?`<img src="${esc(event.data.posterImage)}" alt="Affiche">`:''}
+    ${event.data.posterImage?`<img class="event-poster" src="${esc(event.data.posterImage)}" alt="Affiche de ${esc(event.name)}">`:''}
+    ${event.points_config?.scale?`<h3>Barème de points</h3><p>${event.points_config.scale.map((p,i)=>`P${i+1} : ${p} pt${p>1?'s':''}`).join(' · ')}</p>`:''}
     <h3>Calendrier</h3><ul>${Object.entries(event.data.customCalendar||{}).map(([k,v])=>`<li>${esc(k)} : ${esc(v||'Date à confirmer')}</li>`).join('')||'<li>Date à confirmer</li>'}</ul>
-    <h3>Galerie</h3>${(event.data.galleryImages||[]).map(src=>`<img src="${esc(src)}" alt="">`).join('')||TBC}`;
+    <h3>Galerie</h3><div class="event-gallery">${(event.data.galleryImages||[]).map((src,i)=>`<img src="${esc(src)}" alt="Photo ${i+1} de ${esc(event.name)}">`).join('')||TBC}</div>`;
   $('[data-panel="standings"]').innerHTML=`<table><thead><tr><th>#</th><th>Pilote</th><th>Points</th><th>Victoires</th></tr></thead><tbody>${
     standings.map(r=>`<tr><td>${r.position}</td><td>${esc(r.driverName)}</td><td>${r.total}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table>`;
   const races=(event.data.sessions||[]).filter(s=>s.type==='RACE');
@@ -90,7 +91,7 @@ function showAdminTab(name){
   $$('[data-apanel]').forEach(x=>x.hidden=x.dataset.apanel!==name);
 }
 async function renderCommission(){
-  const panel=$('[data-apanel="commission"]'); if(!panel||!currentEvent||!token()) return;
+  const panel=$('[data-apanel="commission"]'); if(!panel||!currentEvent||currentEvent.kind==='open'||!token()) return;
   const ev=currentEvent, slug=currentSlug, drivers=allDrivers();
   const {pendingSessions}=await adminApi(`/api/admin/events/${encodeURIComponent(slug)}/commission`);
   const tab=$('[data-atab="commission"]'); if(tab) tab.textContent=`Commission (${pendingSessions.length})`;
@@ -163,8 +164,8 @@ function renderImports(){
     }catch(e){ message.textContent=`Import impossible : ${e.message}`; } };
   $('#ah-import').onclick=async()=>{ const message=$('#ah-status'); message.textContent='Création, import et anonymisation…';
     try{ const r=await adminApi('/api/admin/assettohosting/championships/import',{method:'POST',body:JSON.stringify({championshipUrl:$('#ah-championship').value,kind:$('#ah-kind').value})});
-      status(`${r.event.name} créé : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`);
-      await loadEvent(r.event.slug); renderAdmin(); showAdminTab('commission');
+      status(r.published?`${r.event.name} créé et ${r.added} session(s) publiée(s) directement`:`${r.event.name} créé : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`);
+      await loadEvent(r.event.slug); renderAdmin(); showAdminTab(r.published?'evenements':'commission');
     }catch(e){ message.textContent=`Import impossible : ${e.message}`; } };
   $('#imp-go')?.addEventListener('click',async()=>{ const payloads=[]; for(const f of $('#imp-files').files) payloads.push(JSON.parse(await f.text()));
     const r=await adminApi(`/api/admin/events/${currentSlug}/import`,{method:'POST',body:JSON.stringify({payloads})});
@@ -175,9 +176,18 @@ async function renderEventManagement(){
   $('[data-apanel="evenements"]').innerHTML=`<h3>Gestion des événements</h3><p>Archiver conserve tous les résultats. Réouvrir replace l’événement dans sa section d’origine.</p>`+
     (events.map(e=>`<article class="card event-admin"><div><strong>${esc(e.name)}</strong><br><small>${labels[e.kind]} · ${esc(e.slug)}</small></div><div class="event-admin-actions">
       ${e.kind==='archive'?`<button data-reopen="${esc(e.slug)}">Réouvrir</button>`:`<button data-archive="${esc(e.slug)}">Archiver</button>`}
-      <button class="danger" data-delete="${esc(e.slug)}" data-name="${esc(e.name)}">Supprimer</button></div></article>`).join('')||'<p>Aucun événement.</p>');
+      <button class="danger" data-delete="${esc(e.slug)}" data-name="${esc(e.name)}">Supprimer</button></div>
+      ${currentSlug===e.slug?`<div class="event-media"><h4>Affiche et galerie</h4><label>Affiche de l’événement<input id="event-poster" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
+        <label>Images de la galerie<input id="event-gallery" type="file" accept="image/png,image/jpeg,image/webp,image/gif" multiple></label>
+        <button id="media-save">Enregistrer les images</button></div>`:''}</article>`).join('')||'<p>Aucun événement.</p>');
   $$('[data-archive]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.archive}/kind`,{method:'PUT',body:JSON.stringify({kind:'archive'})}); status('Événement archivé'); await renderEventManagement(); });
   $$('[data-reopen]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.reopen}/kind`,{method:'PUT',body:JSON.stringify({reopen:true})}); status('Événement rouvert'); await renderEventManagement(); });
+  $('#media-save')?.addEventListener('click',async()=>{
+    const read=file=>new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
+    const body={}; if($('#event-poster').files[0]) body.posterImage=await read($('#event-poster').files[0]);
+    if($('#event-gallery').files.length) body.galleryImages=await Promise.all([...$('#event-gallery').files].map(read));
+    await adminApi(`/api/admin/events/${currentSlug}/media`,{method:'PUT',body:JSON.stringify(body)}); status('Affiche et galerie enregistrées'); await loadEvent(currentSlug); renderAdmin();
+  });
   $$('[data-delete]').forEach(b=>b.onclick=async()=>{ if(!confirm(`Supprimer définitivement « ${b.dataset.name} » et tous ses résultats ?`)) return;
     await adminApi(`/api/admin/events/${b.dataset.delete}`,{method:'DELETE'}); if(currentSlug===b.dataset.delete){ currentEvent=null; currentSlug=null; } status('Événement supprimé'); await renderEventManagement(); });
 }
@@ -185,6 +195,7 @@ function renderAdmin(){
   if(!token()) return; $('#admin-body').hidden=false; renderImports(); renderEventManagement().catch(e=>status(e.message));
   if(!currentEvent) { $$('#atabs button').forEach(b=>b.onclick=()=>showAdminTab(b.dataset.atab)); return; }
   const ev=currentEvent, slug=currentSlug, drivers=allDrivers();
+  const commissionTab=$('[data-atab="commission"]'); if(commissionTab) commissionTab.hidden=ev.kind==='open';
   // Les imports directs sont indépendants de l'événement courant (renderImports).
   // Manches
   $('[data-apanel="manches"]').innerHTML=`<h3>Manches (onglet Circuit)</h3>`+

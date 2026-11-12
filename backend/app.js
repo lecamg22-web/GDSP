@@ -4,7 +4,7 @@ const {MemoryStore,seedEvents}=require('./lib/store');
 const {computeStandings}=require('./lib/standings');
 const {applyPenalties}=require('./lib/penalties');
 const {computeGlobalRatings}=require('./lib/globalRating');
-const {importPayloads,normalizeSession,mergeSessions,sessionKey}=require('./lib/importResult');
+const {importPayloads,normalizeSession,mergeSessions,sessionKey,cleanTrackName,nameRounds}=require('./lib/importResult');
 const {checkCredentials,issueToken,requireAdmin}=require('./lib/auth');
 const {anonymize,assertNoGuid}=require('./lib/anonymize');
 const {buildCircuitRound}=require('./lib/circuit');
@@ -20,8 +20,17 @@ function publicEvent(event){
 function stagePayloads(event,payloads){
   const published=event.data.sessions||[], pending=event.data.pendingSessions||[];
   const result=importPayloads([...published,...pending],payloads);
-  event.data.pendingSessions=[...pending,...result.added];
-  return {added:result.added.length,duplicates:result.duplicates.length};
+  nameRounds([...published,...pending,...result.added]);
+  if(event.kind==='open'){
+    event.data.sessions=[...published,...result.added];
+    for(const race of event.data.sessions.filter(s=>s.type==='RACE')){
+      const id=`M${race.roundNumber||event.data.sessions.filter(s=>s.type==='RACE').indexOf(race)+1}`;
+      if(!(event.data.circuitRounds||[]).some(r=>r.id===id)) event.data.circuitRounds.push({id,label:race.track,date:race.date,winner:race.results?.find(r=>Number(r.position)===1)?.driverName||null,track:{name:race.track},layout:{points:[]},elevation:[],corners:[],sectors:[],surfaces:[]});
+    }
+    event.data.circuitRounds.sort((a,b)=>Number(a.id.slice(1))-Number(b.id.slice(1)));
+  }else event.data.pendingSessions=[...pending,...result.added];
+  nameRounds([...event.data.sessions,...event.data.pendingSessions]);
+  return {added:result.added.length,duplicates:result.duplicates.length,published:event.kind==='open'};
 }
 function validateEvent(body){
   if(!body||!/^[a-z0-9-]+$/.test(body.slug||'')) throw Object.assign(new Error('slug invalide (a-z, 0-9, -)'),{status:400});
@@ -59,13 +68,13 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
   app.get('/api/admin/assettohosting/championships',requireAdmin,async(req,res,next)=>{ try{
     res.json(await listChampionships(req.query.url,opts)); }catch(e){next(e);} });
   app.post('/api/admin/assettohosting/championships/import',requireAdmin,async(req,res,next)=>{ try{
-    const {championship,payloads}=await readChampionship(req.body.championshipUrl,opts);
+    const {championship,payloads,pointsConfig}=await readChampionship(req.body.championshipUrl,opts);
     const kind=req.body.kind||'championship';
     if(!['championship','cup','open'].includes(kind)) throw Object.assign(new Error('Type d’événement invalide'),{status:400});
     const events=await store.listEvents();
     const base=(championship.name||'championnat').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'championnat';
     let slug=base, n=2; while(events.some(e=>e.slug===slug)) slug=`${base}-${n++}`;
-    const event=validateEvent({slug,name:championship.name,kind});
+    const event=validateEvent({slug,name:championship.name,kind,points_config:pointsConfig});
     event.data.championshipAH=championship;
     const result=stagePayloads(event,payloads);
     await store.saveEvent(event);
@@ -87,6 +96,16 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     if(kind!=='archive') delete event.data.activeKind;
     await store.saveEvent(event); res.json({slug:event.slug,name:event.name,kind:event.kind,activeKind:event.data.activeKind});
   }catch(e){next(e);} });
+  app.put('/api/admin/events/:slug/media',requireAdmin,async(req,res,next)=>{ try{
+    const event=await store.getEvent(req.params.slug); if(!event) return res.status(404).json({error:'Événement introuvable'});
+    const valid=image=>typeof image==='string'&&/^data:image\/(png|jpeg|webp|gif);base64,[A-Za-z0-9+/=]+$/.test(image);
+    if(req.body.posterImage!=null){ if(req.body.posterImage!==''&&!valid(req.body.posterImage)) return res.status(400).json({error:'Affiche invalide'}); event.data.posterImage=req.body.posterImage||null; }
+    if(Array.isArray(req.body.galleryImages)){
+      if(req.body.galleryImages.length>20||req.body.galleryImages.some(i=>!valid(i))) return res.status(400).json({error:'Galerie invalide (20 images maximum)'});
+      event.data.galleryImages=req.body.galleryImages;
+    }
+    await store.saveEvent(event); res.json({posterImage:event.data.posterImage,galleryImages:event.data.galleryImages});
+  }catch(e){next(e);} });
   app.delete('/api/admin/events/:slug',requireAdmin,async(req,res,next)=>{ try{ await store.deleteEvent(req.params.slug); res.status(204).end(); }catch(e){next(e);} });
   app.post('/api/admin/events/:slug/import',requireAdmin,async(req,res,next)=>{ try{
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
@@ -101,7 +120,8 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     res.json({scanned:all.length,...result}); }catch(e){next(e);} });
   app.post('/api/admin/events/:slug/import/championship',requireAdmin,async(req,res,next)=>{ try{
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
-    const {championship,payloads}=await readChampionship(req.body.championshipUrl,opts);
+    const {championship,payloads,pointsConfig}=await readChampionship(req.body.championshipUrl,opts);
+    if(pointsConfig) e.points_config=pointsConfig;
     const result=stagePayloads(e,payloads);
     e.data.championshipAH=championship; // safe metadata only: never persist the export's entrant GUIDs
     await store.saveEvent(e); res.json({championship,scanned:payloads.length,...result}); }catch(e){next(e);} });

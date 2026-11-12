@@ -35,7 +35,7 @@ function normalizeSession(raw){
   const lapCounters=new Map();
   const laps=(raw.Laps||raw.laps||[]).map(l=>{ const id=(l.DriverGuid||l.DriverGUID)?pseudonymize(l.DriverGuid||l.DriverGUID):l.driverId;
     const n=(lapCounters.get(id)||0)+1; lapCounters.set(id,n); return normalizeLap(l,n); });
-  return { date:raw.Date||raw.date||null, type, track:raw.TrackName||raw.Track||raw.track||'À confirmer',
+  return { date:raw.Date||raw.date||null, type, track:cleanTrackName(raw.TrackName||raw.Track||raw.track||'À confirmer'),
     trackConfig:raw.TrackConfig||raw.trackConfig||null, eventName:raw.EventName||raw.eventName||null,
     championshipId:raw.ChampionshipID||raw.championshipId||null, sessionFile:raw.SessionFile||raw.sessionFile||null,
     results, laps,
@@ -56,4 +56,18 @@ function importPayloads(existingSessions, payloads){
   const normalized=[]; for(const p of (Array.isArray(payloads)?payloads:[payloads])){ const s=normalizeSession(p); if(s) normalized.push(s); }
   return mergeSessions(existingSessions, normalized);
 }
-module.exports={sessionKey,isIgnoredSession,normalizeSession,mergeSessions,importPayloads};
+function cleanTrackName(value){
+  const name=String(value||'À confirmer').replace(/\.(json|ini|kn5)$/i,'').replace(/^(ks|ac|acf|ah)_/i,'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
+  return name.replace(/\b\w/g,c=>c.toUpperCase())||'À confirmer';
+}
+function nameRounds(sessions=[]){
+  const ordered=[...sessions].sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+  const races=ordered.filter(s=>s.type==='RACE');
+  races.forEach((race,i)=>{ race.roundNumber=i+1; race.label=`Manche ${i+1}`; });
+  ordered.filter(s=>s.type==='QUALIFY').forEach(q=>{
+    const race=races.find(r=>String(r.date||'')>=String(q.date||''))||races[races.length-1];
+    if(race){ q.roundNumber=race.roundNumber; q.label=race.label; }
+  });
+  return sessions;
+}
+module.exports={sessionKey,isIgnoredSession,normalizeSession,mergeSessions,importPayloads,cleanTrackName,nameRounds};
