@@ -132,6 +132,19 @@ test('thème vintage premium: appliqué au SSR et à l’interface applicative',
   assert.match(html,/class="app-hero"/);
   assert.doesNotMatch(html,/color-scheme:dark/);
 });
+test('administration mobile: formulaires tactiles et Commission en cartes',()=>{
+  const css=fs.readFileSync(path.join(__dirname,'..','frontend','public','theme.css'),'utf8');
+  assert.match(css,/@media \(max-width: 580px\)/);
+  assert.match(css,/#login \{ display: grid; grid-template-columns: 1fr/);
+  assert.match(css,/\[data-pending-card\] tr\[data-pending-result\]/);
+  assert.match(css,/content: attr\(data-label\)/);
+  assert.match(css,/font-size: 16px/);
+  const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
+  assert.match(js,/data-label="Temps total \(s\)"/);
+  assert.match(js,/aria-label="Pénalité du pilote/);
+  const html=fs.readFileSync(path.join(__dirname,'..','frontend','public','index.html'),'utf8');
+  assert.match(html,/<label>Utilisateur<input/); assert.match(html,/<label>Mot de passe<input/);
+});
 async function http(app,method,url,body,headers={}){
   const srv=app.listen(0); await new Promise(r=>srv.once('listening',r));
   try{ const res=await fetch(`http://127.0.0.1:${srv.address().port}${url}`,{method,headers:{'Content-Type':'application/json',...headers},body:body?JSON.stringify(body):undefined});
