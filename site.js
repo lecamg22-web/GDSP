@@ -100,12 +100,12 @@ async function renderCommission(){
     <label>Date <input data-field="date" value="${esc(s.date||'')}" placeholder="Date à confirmer"></label>
     <label>Type <select data-field="type"><option value="RACE" ${s.type==='RACE'?'selected':''}>RACE</option><option value="QUALIFY" ${s.type==='QUALIFY'?'selected':''}>QUALIFY</option></select></label></div>
     <div class="table-wrap"><table><thead><tr><th>Pos.</th><th>Pilote</th><th>Temps total (s)</th><th>Meilleur tour (s)</th><th>Pénalité (s)</th><th>DSQ</th></tr></thead><tbody>
-    ${(s.results||[]).map((r,j)=>`<tr data-pending-result="${j}"><td><input data-result="position" type="number" min="1" step="1" value="${r.position??j+1}"></td>
-      <td><input data-result="driverName" value="${esc(r.driverName)}"></td>
-      <td><input data-result="totalTimeSeconds" type="number" step="0.001" value="${r.totalTimeSeconds??''}"></td>
-      <td><input data-result="bestLapSeconds" type="number" step="0.001" value="${r.bestLapSeconds??''}"></td>
-      <td><input data-result="penaltySeconds" type="number" min="0" step="0.1" value="${r.penaltySeconds||0}"></td>
-      <td><input data-result="disqualified" type="checkbox" ${r.disqualified?'checked':''}></td></tr>`).join('')||'<tr><td colspan="6">Aucun pilote dans cette session.</td></tr>'}
+    ${(s.results||[]).map((r,j)=>`<tr data-pending-result="${j}"><td data-label="Position"><input aria-label="Position du pilote ${j+1}" data-result="position" type="number" min="1" step="1" value="${r.position??j+1}"></td>
+      <td data-label="Pilote"><input aria-label="Nom du pilote ${j+1}" data-result="driverName" value="${esc(r.driverName)}"></td>
+      <td data-label="Temps total (s)"><input aria-label="Temps total du pilote ${j+1}" data-result="totalTimeSeconds" type="number" step="0.001" value="${r.totalTimeSeconds??''}"></td>
+      <td data-label="Meilleur tour (s)"><input aria-label="Meilleur tour du pilote ${j+1}" data-result="bestLapSeconds" type="number" step="0.001" value="${r.bestLapSeconds??''}"></td>
+      <td data-label="Pénalité (s)"><input aria-label="Pénalité du pilote ${j+1}" data-result="penaltySeconds" type="number" min="0" step="0.1" value="${r.penaltySeconds||0}"></td>
+      <td data-label="Disqualification"><input aria-label="Disqualifier le pilote ${j+1}" data-result="disqualified" type="checkbox" ${r.disqualified?'checked':''}></td></tr>`).join('')||'<tr><td colspan="6">Aucun pilote dans cette session.</td></tr>'}
     </tbody></table></div><div class="commission-actions"><button data-save-pending="${i}">Enregistrer les modifications</button>
     <button data-publish-pending="${i}">Publier et calculer</button><button data-reject-pending="${i}">Écarter</button></div></article>`).join('')
     ||'<p class="empty-card">Aucune session en attente. Les prochains imports apparaîtront ici.</p>';
