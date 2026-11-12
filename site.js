@@ -62,8 +62,9 @@ function initTabs(){ $$('#tabs button').forEach(b=>b.addEventListener('click',()
   $$('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==b.dataset.tab); })); }
 async function init(){
   initTabs();
-  const slug=new URLSearchParams(location.search).get('event')||document.querySelector('[data-slug]')?.dataset.slug||'championnat-exemple';
-  try{ await loadEvent(slug); }catch(e){ $('#app').insertAdjacentHTML('beforeend',`<p role="alert">Service temporairement indisponible (${esc(e.message)})</p>`); }
+  const appRoot=$('#app');
+  const slug=new URLSearchParams(location.search).get('event')||appRoot?.dataset.slug||'championnat-exemple';
+  if(appRoot) try{ await loadEvent(slug); }catch(e){ appRoot.insertAdjacentHTML('beforeend',`<p role="alert">Service temporairement indisponible (${esc(e.message)})</p>`); }
   const login=$('#login'); if(login) login.addEventListener('submit',async ev=>{ ev.preventDefault();
     const fd=new FormData(login); const data=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(fd))});
     localStorage.setItem('gdsp-token',data.token); $('#admin-body').hidden=false; renderAdmin(); status('Connecté'); });
