@@ -10,8 +10,9 @@ const {anonymize,assertNoGuid}=require('./lib/anonymize');
 const {buildCircuitRound}=require('./lib/circuit');
 const {listDriveFolder,pickCircuitFiles,downloadUrl,fetchBuffer,fetchText}=require('../tools/lib/drive');
 const {scanServer}=require('./lib/ahServers');
+const {listChampionships,readChampionship}=require('./lib/ahChampionships');
 const EVENT_KINDS=['championship','archive','open'];
-function blankData(){ return {sessions:[],pendingSessions:[],penMap:{},manualDrivers:{},customCalendar:{},eventInfo:{},posterImage:null,galleryImages:[],circuitRounds:[],serversAH:[]}; }
+function blankData(){ return {sessions:[],pendingSessions:[],penMap:{},manualDrivers:{},customCalendar:{},eventInfo:{},posterImage:null,galleryImages:[],circuitRounds:[],serversAH:[],championshipAH:null}; }
 function publicEvent(event){
   const {pendingSessions,...publishedData}=event.data||{}; // drafts stay private to the Commission
   return {...event,data:publishedData};
@@ -55,6 +56,8 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
   app.post('/api/admin/login',(req,res)=>{ const {username,password}=req.body||{};
     if(!checkCredentials(username,password)) return res.status(401).json({error:'Identifiants invalides'});
     res.json({token:issueToken(username)}); });
+  app.get('/api/admin/assettohosting/championships',requireAdmin,async(req,res,next)=>{ try{
+    res.json(await listChampionships(req.query.url,opts)); }catch(e){next(e);} });
   app.post('/api/admin/events',requireAdmin,async(req,res,next)=>{ try{ const e=validateEvent(anonymize(req.body));
     await store.saveEvent(e); res.status(201).json(e); }catch(e){next(e);} });
   app.put('/api/admin/events/:slug',requireAdmin,async(req,res,next)=>{ try{
@@ -73,6 +76,12 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     for(const s of servers) all=all.concat(await scanServer(s, opts));
     const result=stagePayloads(e,all); await store.saveEvent(e);
     res.json({scanned:all.length,...result}); }catch(e){next(e);} });
+  app.post('/api/admin/events/:slug/import/championship',requireAdmin,async(req,res,next)=>{ try{
+    const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
+    const {championship,payloads}=await readChampionship(req.body.championshipUrl,opts);
+    const result=stagePayloads(e,payloads);
+    e.data.championshipAH=championship; // safe metadata only: never persist the export's entrant GUIDs
+    await store.saveEvent(e); res.json({championship,scanned:payloads.length,...result}); }catch(e){next(e);} });
   // Commission: imported sessions remain private drafts until explicitly published.
   app.get('/api/admin/events/:slug/commission',requireAdmin,async(req,res,next)=>{ try{
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});

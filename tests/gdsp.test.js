@@ -15,6 +15,7 @@ const {createApp}=require('../backend/app');
 const {MemoryStore,seedIfEmpty}=require('../backend/lib/store');
 const {createFrontendApp}=require('../frontend/app');
 const {createUnifiedApp}=require('../server');
+const {parseChampionshipsHtml,extractChampionshipSessions,championshipExportUrl}=require('../backend/lib/ahChampionships');
 
 const GUID='76561198000000001';
 test('anonymisation: déterministe, irréversible en apparence, aucun GUID résiduel',()=>{
@@ -282,6 +283,38 @@ test('service unifié: pages, statiques et API sans proxy ni BACKEND_URL externe
     await new Promise(r=>server.close(r));
     if(previous==null) delete process.env.BACKEND_URL; else process.env.BACKEND_URL=previous;
   }
+});
+
+test('championnats AH: parsing de la liste et extraction RACE/QUALIFY de l’export',()=>{
+  const html=`<table><tr><td><a href="/championship/abc-123">Open GDSP</a></td><td>91%</td><td>7</td><td>1</td><td>30</td><td><a href="/championship/abc-123">View</a></td></tr>
+    <tr><td><a href="/championship/def-456">Open terminé</a></td><td>100%</td><td>1</td><td>1</td><td>12</td></tr></table>`;
+  const list=parseChampionshipsHtml(html,'https://fr2.assettohosting.com:50648/championships');
+  assert.equal(list.length,2); assert.equal(list[0].name,'Open GDSP'); assert.equal(list[0].eventCount,7);
+  assert.equal(list[0].status,'active'); assert.equal(list[1].status,'completed');
+  assert.equal(championshipExportUrl(list[0].url).exportUrl,'https://fr2.assettohosting.com:50648/championship/abc-123/export');
+  const raw={ID:'abc-123',Name:'Open GDSP',Classes:[{Entrants:{CAR_0:{GUID:GUID}}}],Events:[{Sessions:{Qualifying:{Type:'QUALIFY',Date:'2026-01-01',Result:[]},Race:{Type:'RACE',Date:'2026-01-02',Result:[]},Practice:{Type:'PRACTICE',Date:'2026-01-01',Result:[]}}}]};
+  const sessions=extractChampionshipSessions(raw);
+  assert.equal(sessions.length,2); assert.ok(sessions.every(s=>s.ChampionshipID==='abc-123'));
+  assert.ok(sessions.every(s=>s.EventName==='Open GDSP'));
+});
+
+test('API championnat AH: liste protégée, import anonymisé vers Commission uniquement',async()=>{
+  process.env.ADMIN_USERNAME='admin'; process.env.ADMIN_PASSWORD='secret';
+  const store=new MemoryStore([{slug:'ah',name:'Événement AH',kind:'championship',data:{sessions:[],pendingSessions:[],penMap:{}}}]);
+  const raw={ID:'abc-123',Name:'Open GDSP',Updated:'2026-11-01',Stats:{Progress:91,NumEvents:7},Classes:[{Entrants:{CAR_0:{GUID:GUID}}}],Events:[{Sessions:[
+    {Type:'QUALIFY',Date:'2026-01-01',Track:'Monza',Result:[{DriverGuid:GUID,DriverName:'Alice',Position:1}]},
+    {Type:'RACE',Date:'2026-01-02',Track:'Monza',Result:[{DriverGuid:GUID,DriverName:'Alice',Position:1,TotalTime:100000}]},
+    {Type:'PRACTICE',Date:'2026-01-01',Track:'Monza',Result:[]}]}]};
+  const app=createApp(store,{fetchText:async()=>'<tr><td><a href="/championship/abc-123">Open GDSP</a></td><td>91%</td><td>7</td><td>1</td><td>30</td></tr>',fetchJson:async()=>raw});
+  assert.equal((await http(app,'GET','/api/admin/assettohosting/championships')).status,401);
+  const login=await http(app,'POST','/api/admin/login',{username:'admin',password:'secret'}), H={Authorization:`Bearer ${login.body.token}`};
+  const list=await http(app,'GET','/api/admin/assettohosting/championships?url=https%3A%2F%2Ffr2.assettohosting.com%3A50648%2Fchampionships',null,H);
+  assert.equal(list.status,200); assert.equal(list.body[0].name,'Open GDSP');
+  const imported=await http(app,'POST','/api/admin/events/ah/import/championship',{championshipUrl:list.body[0].url},H);
+  assert.equal(imported.status,200); assert.equal(imported.body.scanned,2); assert.equal(imported.body.added,2);
+  const saved=await store.getEvent('ah'); assert.equal(saved.data.pendingSessions.length,2); assert.equal(saved.data.sessions.length,0);
+  assert.equal(saved.data.championshipAH.name,'Open GDSP'); assert.doesNotMatch(JSON.stringify(saved),/7656119/);
+  const publicEvent=await http(app,'GET','/api/events/ah'); assert.equal('pendingSessions' in publicEvent.body.data,false);
 });
 
 test('format RÉEL AssettoHosting: Result singulier, temps en ms, distance via NumLaps, collisions imbriquées',()=>{

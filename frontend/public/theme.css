@@ -195,6 +195,11 @@ tbody tr:hover td { background: #eadbbc; }
 #login { display: flex; flex-wrap: wrap; align-items: end; gap: .65rem; padding: 1.2rem; background: var(--paper); border: 1px solid var(--line); }
 #login label { display: grid; gap: .3rem; color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 #admin-status { color: var(--green); font-weight: 700; }
+.championship-import { margin-top: 1.4rem; }
+.championship-import label { display: block; margin: .7rem 0 .3rem; color: var(--muted); font-size: .75rem; font-weight: 700; }
+.championship-import input, .championship-import select { width: min(100%, 700px); }
+#ah-choice { margin-top: 1rem; }
+#ah-status { margin-bottom: 0; color: var(--muted); }
 .commission-fields { display: grid; grid-template-columns: 1fr 1fr 160px; gap: .8rem; margin: 1rem 0; }
 .commission-fields label { display: grid; gap: .3rem; color: var(--muted); font-size: .72rem; font-weight: 700; letter-spacing: .05em; text-transform: uppercase; }
 .commission-fields input, .commission-fields select { width: 100%; }
