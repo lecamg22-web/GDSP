@@ -371,7 +371,9 @@ test('manches chronologiques, barème importé et médias protégés',async()=>{
   assert.equal((await store.getEvent('open-circuits')).data.galleryImages.length,1);
   assert.equal((await http(app,'PUT','/api/admin/events/open-circuits/media',{posterImage:'https://externe.invalid/a.jpg'},H)).status,400);
   const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
-  assert.match(js,/Barème de points/); assert.match(js,/event-gallery/); assert.match(js,/event-poster/);
+  assert.match(js,/displayLabel=`Manche/); assert.match(js,/cleanTrack\(r.track\)/); assert.match(js,/event.data.circuitRounds\?\.length/);
+  const frontend=fs.readFileSync(path.join(__dirname,'..','frontend','app.js'),'utf8');
+  assert.match(frontend,/Barème de points/); assert.match(frontend,/event-gallery/); assert.match(frontend,/event-poster/);
 });
 test('format RÉEL AssettoHosting: Result singulier, temps en ms, distance via NumLaps, collisions imbriquées',()=>{
   const raw={Version:7, Type:'RACE', Date:'2026-11-04T22:42:00+01:00', TrackName:'6thgpmexico67', TrackConfig:'gp',

@@ -2,6 +2,8 @@
 /* GDSP front — vanilla JS, no build. Talks ONLY to /api/* (proxied by frontend server). */
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
 const TBC='à confirmer';
+const cleanTrack=value=>String(value||TBC).replace(/\.(json|ini|kn5)$/i,'').replace(/^(ks|ac|acf|ah)_/i,'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim().replace(/([a-z])([0-9]{2,4})/gi,'$1 $2').replace(/\b\w/g,c=>c.toUpperCase());
+const shortDate=value=>{ const d=new Date(value); return Number.isNaN(d.getTime())?(value||'Date à confirmer'):d.toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}); };
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 async function api(path, opts={}){ const r=await fetch(path,opts); if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.status===204?null:r.json(); }
 function svgPath(points){
@@ -30,19 +32,15 @@ async function loadEvent(slug){
   currentEvent=event; currentSlug=slug;
   const standings=await api(`/api/events/${encodeURIComponent(slug)}/standings`);
   const info=event.data.eventInfo||{}; // strictly this event's labels — no cross-event leakage
-  $('[data-panel="infos"]').innerHTML=`<h2>${esc(event.name)}</h2><p>${esc(info.description||TBC)}</p>
-    ${info.plateau?`<p>Plateau : ${esc(info.plateau)}</p>`:''}
-    ${event.data.posterImage?`<img class="event-poster" src="${esc(event.data.posterImage)}" alt="Affiche de ${esc(event.name)}">`:''}
-    ${event.points_config?.scale?`<h3>Barème de points</h3><p>${event.points_config.scale.map((p,i)=>`P${i+1} : ${p} pt${p>1?'s':''}`).join(' · ')}</p>`:''}
-    <h3>Calendrier</h3><ul>${Object.entries(event.data.customCalendar||{}).map(([k,v])=>`<li>${esc(k)} : ${esc(v||'Date à confirmer')}</li>`).join('')||'<li>Date à confirmer</li>'}</ul>
-    <h3>Galerie</h3><div class="event-gallery">${(event.data.galleryImages||[]).map((src,i)=>`<img src="${esc(src)}" alt="Photo ${i+1} de ${esc(event.name)}">`).join('')||TBC}</div>`;
+  $('[data-panel="infos"]').innerHTML=`${info.plateau?`<p>Plateau : ${esc(info.plateau)}</p>`:'<p>Retrouvez le calendrier, le barème et les informations de cet événement ci-dessus.</p>'}`;
   $('[data-panel="standings"]').innerHTML=`<table><thead><tr><th>#</th><th>Pilote</th><th>Points</th><th>Victoires</th></tr></thead><tbody>${
     standings.map(r=>`<tr><td>${r.position}</td><td>${esc(r.driverName)}</td><td>${r.total}</td><td>${r.wins}</td></tr>`).join('')}</tbody></table>`;
-  const races=(event.data.sessions||[]).filter(s=>s.type==='RACE');
-  $('[data-panel="results"]').innerHTML=`<label>Manche <select id="race-select">${races.map((r,i)=>`<option value="${i}">${esc(r.track)} — ${esc(r.date||'Date à confirmer')}</option>`).join('')}</select></label><div id="race-detail"></div>`;
+  const races=(event.data.sessions||[]).filter(s=>s.type==='RACE').sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+  races.forEach((r,i)=>{ r.displayLabel=`Manche ${i+1}`; r.displayTrack=cleanTrack(r.track); });
+  $('[data-panel="results"]').innerHTML=`<label>Manche <select id="race-select">${races.map((r,i)=>`<option value="${i}">${r.displayLabel} · ${esc(r.displayTrack)} — ${esc(shortDate(r.date))}</option>`).join('')}</select></label><div id="race-detail"></div>`;
   const drawRace=i=>{ const r=races[i]; $('#race-detail').innerHTML=r?`<table><tbody>${[...r.results].sort((a,b)=>a.position-b.position).map(x=>`<tr><td>${x.position}</td><td>${esc(x.driverName)}</td></tr>`).join('')}</tbody></table>`:TBC; };
   const sel=$('#race-select'); if(sel){ sel.addEventListener('change',()=>drawRace(+sel.value)); drawRace(0); }
-  const rounds=event.data.circuitRounds||[];
+  const rounds=event.data.circuitRounds?.length?event.data.circuitRounds:races.map(r=>({id:`M${races.indexOf(r)+1}`,label:r.displayTrack,date:r.date,winner:r.results?.find(x=>Number(x.position)===1)?.driverName||null,track:{name:r.displayTrack},layout:{points:[]},corners:[],sectors:[],surfaces:[]}));
   $('#tab-circuit').hidden = rounds.length===0; // hidden until at least one round exists, for ANY event
   $('[data-panel="circuit"]').innerHTML = rounds.length
     ? `<label>Manche <select id="round-select">${rounds.map((r,i)=>`<option value="${i}">${esc(r.id)}</option>`).join('')}</select></label><div id="round-detail"></div>` : '';
