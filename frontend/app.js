@@ -58,7 +58,8 @@ ${section('archive','Archives','Les saisons et les souvenirs du club.','archives
   app.get('/evenements/:slug',async(req,res)=>{ try{
     const e=await fetchJson(`${backendBase()}/api/events/${encodeURIComponent(req.params.slug)}`);
     const info=e.data.eventInfo||{}; // per-event ONLY: never borrow labels from another event
-    const calendar=Object.entries(e.data.customCalendar||{}).map(([k,v])=>`<li>${esc(k)} : ${esc(v||TBC)}</li>`).join('')||'<li>Date à confirmer</li>';
+    const formatDate=value=>{ const d=new Date(value); return Number.isNaN(d.getTime())?TBC:d.toLocaleString('fr-FR',{dateStyle:'short',timeStyle:'short'}); };
+    const calendar=(e.data.autoCalendar||[]).length?e.data.autoCalendar.map(r=>`<li><strong>${esc(r.label)} · ${esc(r.track)}</strong> — ${esc(formatDate(r.date))}${r.qualifyDate?` · Qualification : ${esc(formatDate(r.qualifyDate))}`:''}${r.winner?` · Vainqueur : ${esc(r.winner)}`:''}</li>`).join(''):Object.entries(e.data.customCalendar||{}).map(([k,v])=>`<li>${esc(k)} : ${esc(v||TBC)}</li>`).join('')||'<li>Date à confirmer</li>';
     const cleanTrack=value=>String(value||TBC).replace(/\.(json|ini|kn5)$/i,'').replace(/^(ks|ac|acf|ah)_/i,'').replace(/[_-]+/g,' ').replace(/([a-z])([0-9]{2,4})/gi,'$1 $2').replace(/\b\w/g,c=>c.toUpperCase());
     const oldRaces=(e.data.sessions||[]).filter(s=>s.type==='RACE').sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
     const rounds=e.data.circuitRounds?.length?e.data.circuitRounds:oldRaces.map((r,i)=>({id:`M${i+1}`,label:cleanTrack(r.track),date:r.date,winner:r.results?.find(x=>Number(x.position)===1)?.driverName||null}));
