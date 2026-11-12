@@ -157,7 +157,7 @@ test('Cup: type valide et section entre championnats et opens',async()=>{
   assert.ok(championship>=0&&cup>championship&&open>cup);
   assert.match(home.body,/href="\/evenements\/cup-test"/);
   const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
-  assert.match(js,/value="cup">Cup — mini-championnat/);
+  assert.match(js,/id="ah-kind"><option value="championship">Championnat<\/option><option value="cup">Cup — mini-championnat/);
 });
 async function http(app,method,url,body,headers={}){
   const srv=app.listen(0); await new Promise(r=>srv.once('listening',r));
@@ -330,6 +330,26 @@ test('API championnat AH: liste protégée, import anonymisé vers Commission un
   const publicEvent=await http(app,'GET','/api/events/ah'); assert.equal('pendingSessions' in publicEvent.body.data,false);
 });
 
+test('import autonome: événement créé, brouillon privé, archivage et réouverture',async()=>{
+  process.env.ADMIN_USERNAME='admin'; process.env.ADMIN_PASSWORD='secret';
+  const store=new MemoryStore([{slug:'mini-cup',name:'Existant',kind:'cup',data:{sessions:[]}}]);
+  const raw={ID:'cup-id',Name:'Mini Cup Été',Events:[{Sessions:{Race:{Type:'RACE',Date:'2026-01-02',Track:'Monza',Result:[{DriverGuid:GUID,DriverName:'Alice',Position:1}]}}}]};
+  const app=createApp(store,{fetchJson:async()=>raw});
+  const login=await http(app,'POST','/api/admin/login',{username:'admin',password:'secret'}), H={Authorization:`Bearer ${login.body.token}`};
+  const created=await http(app,'POST','/api/admin/assettohosting/championships/import',{championshipUrl:'https://fr2.assettohosting.com:50648/championship/cup-id',kind:'cup'},H);
+  assert.equal(created.status,201); assert.equal(created.body.event.slug,'mini-cup-ete'); assert.equal(created.body.event.kind,'cup');
+  const saved=await store.getEvent('mini-cup-ete'); assert.equal(saved.data.sessions.length,0); assert.equal(saved.data.pendingSessions.length,1);
+  const second=await http(app,'POST','/api/admin/assettohosting/championships/import',{championshipUrl:'https://fr2.assettohosting.com:50648/championship/cup-id',kind:'cup'},H);
+  assert.equal(second.body.event.slug,'mini-cup-ete-2');
+  await http(app,'PUT','/api/admin/events/mini-cup-ete/kind',{kind:'archive'},H);
+  assert.equal((await store.getEvent('mini-cup-ete')).data.activeKind,'cup');
+  const reopened=await http(app,'PUT','/api/admin/events/mini-cup-ete/kind',{reopen:true},H);
+  assert.equal(reopened.body.kind,'cup');
+  assert.equal((await http(app,'DELETE','/api/admin/events/mini-cup-ete-2',null,H)).status,204);
+  assert.equal(await store.getEvent('mini-cup-ete-2'),null);
+  const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
+  assert.match(js,/Créer l’événement et importer/); assert.match(js,/data-archive=/); assert.match(js,/data-reopen=/); assert.match(js,/data-delete=/);
+});
 test('format RÉEL AssettoHosting: Result singulier, temps en ms, distance via NumLaps, collisions imbriquées',()=>{
   const raw={Version:7, Type:'RACE', Date:'2026-11-04T22:42:00+01:00', TrackName:'6thgpmexico67', TrackConfig:'gp',
     EventName:'Race Weekend: Manche #5 - Mexico - Lola T290', ChampionshipID:'ch-1',

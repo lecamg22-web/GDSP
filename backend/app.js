@@ -58,12 +58,35 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     res.json({token:issueToken(username)}); });
   app.get('/api/admin/assettohosting/championships',requireAdmin,async(req,res,next)=>{ try{
     res.json(await listChampionships(req.query.url,opts)); }catch(e){next(e);} });
+  app.post('/api/admin/assettohosting/championships/import',requireAdmin,async(req,res,next)=>{ try{
+    const {championship,payloads}=await readChampionship(req.body.championshipUrl,opts);
+    const kind=req.body.kind||'championship';
+    if(!['championship','cup','open'].includes(kind)) throw Object.assign(new Error('Type d’événement invalide'),{status:400});
+    const events=await store.listEvents();
+    const base=(championship.name||'championnat').normalize('NFD').replace(/[̀-ͯ]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,'-').replace(/^-|-$/g,'')||'championnat';
+    let slug=base, n=2; while(events.some(e=>e.slug===slug)) slug=`${base}-${n++}`;
+    const event=validateEvent({slug,name:championship.name,kind});
+    event.data.championshipAH=championship;
+    const result=stagePayloads(event,payloads);
+    await store.saveEvent(event);
+    res.status(201).json({event:{slug,name:event.name,kind},championship,scanned:payloads.length,...result});
+  }catch(e){next(e);} });
   app.post('/api/admin/events',requireAdmin,async(req,res,next)=>{ try{ const e=validateEvent(anonymize(req.body));
     await store.saveEvent(e); res.status(201).json(e); }catch(e){next(e);} });
   app.put('/api/admin/events/:slug',requireAdmin,async(req,res,next)=>{ try{
     const current=await store.getEvent(req.params.slug); if(!current) return res.status(404).json({error:'Événement introuvable'});
     const updated={...current,...anonymize(req.body),slug:current.slug,data:{...blankData(),...(req.body.data||current.data)}};
     await store.saveEvent(updated); res.json(updated); }catch(e){next(e);} });
+  app.put('/api/admin/events/:slug/kind',requireAdmin,async(req,res,next)=>{ try{
+    const event=await store.getEvent(req.params.slug); if(!event) return res.status(404).json({error:'Événement introuvable'});
+    const previousKind=event.kind;
+    const kind=req.body.reopen?(event.data.activeKind||'championship'):req.body.kind;
+    if(!EVENT_KINDS.includes(kind)) return res.status(400).json({error:'Type invalide'});
+    if(kind==='archive') event.data.activeKind=previousKind==='archive'?(event.data.activeKind||'championship'):previousKind;
+    event.kind=kind;
+    if(kind!=='archive') delete event.data.activeKind;
+    await store.saveEvent(event); res.json({slug:event.slug,name:event.name,kind:event.kind,activeKind:event.data.activeKind});
+  }catch(e){next(e);} });
   app.delete('/api/admin/events/:slug',requireAdmin,async(req,res,next)=>{ try{ await store.deleteEvent(req.params.slug); res.status(204).end(); }catch(e){next(e);} });
   app.post('/api/admin/events/:slug/import',requireAdmin,async(req,res,next)=>{ try{
     const e=await store.getEvent(req.params.slug); if(!e) return res.status(404).json({error:'Événement introuvable'});
