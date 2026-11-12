@@ -59,7 +59,9 @@ ${section('archive','Archives','Les saisons et les souvenirs du club.','archives
     const e=await fetchJson(`${backendBase()}/api/events/${encodeURIComponent(req.params.slug)}`);
     const info=e.data.eventInfo||{}; // per-event ONLY: never borrow labels from another event
     const calendar=Object.entries(e.data.customCalendar||{}).map(([k,v])=>`<li>${esc(k)} : ${esc(v||TBC)}</li>`).join('')||'<li>Date à confirmer</li>';
-    const rounds=e.data.circuitRounds||[];
+    const cleanTrack=value=>String(value||TBC).replace(/\.(json|ini|kn5)$/i,'').replace(/^(ks|ac|acf|ah)_/i,'').replace(/[_-]+/g,' ').replace(/([a-z])([0-9]{2,4})/gi,'$1 $2').replace(/\b\w/g,c=>c.toUpperCase());
+    const oldRaces=(e.data.sessions||[]).filter(s=>s.type==='RACE').sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+    const rounds=e.data.circuitRounds?.length?e.data.circuitRounds:oldRaces.map((r,i)=>({id:`M${i+1}`,label:cleanTrack(r.track),date:r.date,winner:r.results?.find(x=>Number(x.position)===1)?.driverName||null}));
     const circuitSection = rounds.length?`<section class="section"><h2>Circuits</h2>${rounds.map(r=>`<article class="content-card"><h3>${esc(r.id)} — ${esc(r.label||TBC)}</h3><p>Date : ${esc(r.date||'Date à confirmer')} · Vainqueur : ${esc(r.winner||TBC)}</p></article>`).join('')}</section>`:'';
     const points=e.points_config?.scale?`<section class="section content-card"><h2>Barème de points</h2><p>${e.points_config.scale.map((p,i)=>`P${i+1} : ${p} point${p>1?'s':''}`).join(' · ')}</p></section>`:'';
     const media=`${e.data.posterImage?`<img class="event-poster" src="${esc(e.data.posterImage)}" alt="Affiche de ${esc(e.name)}">`:''}${(e.data.galleryImages||[]).length?`<section class="section"><h2>Galerie</h2><div class="event-gallery">${e.data.galleryImages.map((src,i)=>`<img src="${esc(src)}" alt="Photo ${i+1} de ${esc(e.name)}">`).join('')}</div></section>`:''}`;

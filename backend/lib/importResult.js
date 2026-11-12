@@ -57,7 +57,7 @@ function importPayloads(existingSessions, payloads){
   return mergeSessions(existingSessions, normalized);
 }
 function cleanTrackName(value){
-  const name=String(value||'À confirmer').replace(/\.(json|ini|kn5)$/i,'').replace(/^(ks|ac|acf|ah)_/i,'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').trim();
+  const name=String(value||'À confirmer').replace(/\.(json|ini|kn5)$/i,'').replace(/^(ks|ac|acf|ah)_/i,'').replace(/[_-]+/g,' ').replace(/\s+/g,' ').replace(/([a-z])([0-9]{2,4})/gi,'$1 $2').trim();
   return name.replace(/\b\w/g,c=>c.toUpperCase())||'À confirmer';
 }
 function nameRounds(sessions=[]){
