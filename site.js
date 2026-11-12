@@ -62,6 +62,10 @@ async function loadEvent(slug){
       races.map(s=>`<p>${esc(s.track)} — ${esc(s.date||'Date à confirmer')}</p>`).join(''); }));
   return event;
 }
+async function loadAdminEvent(slug){
+  if($('#app')) return loadEvent(slug);
+  currentEvent=await api(`/api/events/${encodeURIComponent(slug)}`); currentSlug=slug; return currentEvent;
+}
 function initTabs(){ $$('#tabs button').forEach(b=>b.addEventListener('click',()=>{
   $$('#tabs button').forEach(x=>x.classList.toggle('active',x===b));
   $$('[data-panel]').forEach(p=>p.hidden=p.dataset.panel!==b.dataset.tab); })); }
@@ -139,16 +143,16 @@ async function renderCommission(){
   $$('[data-save-pending]').forEach(b=>b.addEventListener('click',async()=>{ await savePending(Number(b.dataset.savePending)); status('Modifications enregistrées dans la Commission'); await renderCommission(); }));
   $$('[data-publish-pending]').forEach(b=>b.addEventListener('click',async()=>{ const i=Number(b.dataset.publishPending);
     await savePending(i); await adminApi(`/api/admin/events/${encodeURIComponent(slug)}/commission/${i}/publish`,{method:'POST',body:'{}'});
-    status('Session publiée — résultats et classements recalculés'); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); }));
+    status('Session publiée — résultats et classements recalculés'); await loadAdminEvent(slug); renderAdmin(); showAdminTab('commission'); }));
   $$('[data-reject-pending]').forEach(b=>b.addEventListener('click',async()=>{ const i=Number(b.dataset.rejectPending);
     if(!confirm('Écarter définitivement cette session importée ?')) return;
     await adminApi(`/api/admin/events/${encodeURIComponent(slug)}/commission/${i}`,{method:'DELETE'});
-    status('Session écartée, sans publication'); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); }));
+    status('Session écartée, sans publication'); await loadAdminEvent(slug); renderAdmin(); showAdminTab('commission'); }));
   $('#pen-go')?.addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}/penalties`,{method:'POST',
     body:JSON.stringify({sessionKey:$('#pen-session').value,driverId:$('#pen-driver').value,seconds:Number($('#pen-seconds').value)||0})});
-    status('Pénalité appliquée — classements recalculés'); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); });
+    status('Pénalité appliquée — classements recalculés'); await loadAdminEvent(slug); renderAdmin(); showAdminTab('commission'); });
   $$('[data-del-pen]').forEach(b=>b.addEventListener('click',async()=>{ const [k,d]=b.dataset.delPen.split('|');
-    await adminApi(`/api/admin/events/${slug}/penalties`,{method:'DELETE',body:JSON.stringify({sessionKey:k,driverId:d})}); await loadEvent(slug); renderAdmin(); showAdminTab('commission'); }));
+    await adminApi(`/api/admin/events/${slug}/penalties`,{method:'DELETE',body:JSON.stringify({sessionKey:k,driverId:d})}); await loadAdminEvent(slug); renderAdmin(); showAdminTab('commission'); }));
 }
 function renderImports(){
   $('[data-apanel="imports"]').innerHTML=`<h3>Nouvel événement depuis AssettoHosting</h3>
@@ -169,16 +173,16 @@ function renderImports(){
   $('#ah-import').onclick=async()=>{ const message=$('#ah-status'); message.textContent='Création, import et anonymisation…';
     try{ const r=await adminApi('/api/admin/assettohosting/championships/import',{method:'POST',body:JSON.stringify({championshipUrl:$('#ah-championship').value,kind:$('#ah-kind').value})});
       status(r.published?`${r.event.name} créé et ${r.added} session(s) publiée(s) directement`:`${r.event.name} créé : ${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`);
-      await loadEvent(r.event.slug); renderAdmin(); showAdminTab(r.published?'evenements':'commission');
+      await loadAdminEvent(r.event.slug); renderAdmin(); showAdminTab(r.published?'evenements':'commission');
     }catch(e){ message.textContent=`Import impossible : ${e.message}`; } };
   $('#imp-go')?.addEventListener('click',async()=>{ const payloads=[]; for(const f of $('#imp-files').files) payloads.push(JSON.parse(await f.text()));
     const r=await adminApi(`/api/admin/events/${currentSlug}/import`,{method:'POST',body:JSON.stringify({payloads})});
-    status(`${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadEvent(currentSlug); renderAdmin(); showAdminTab('commission'); });
+    status(`${r.added} session(s) à vérifier, ${r.duplicates} doublon(s)`); await loadAdminEvent(currentSlug); renderAdmin(); showAdminTab('commission'); });
 }
 async function renderEventManagement(){
   const events=await api('/api/events'), labels={championship:'Championnat',cup:'Cup',open:'Open',archive:'Archive'};
   $('[data-apanel="evenements"]').innerHTML=`<h3>Gestion des événements</h3><p>Archiver conserve tous les résultats. Réouvrir replace l’événement dans sa section d’origine.</p>`+
-    (events.map(e=>`<article class="card event-admin"><div><strong>${esc(e.name)}</strong><br><small>${labels[e.kind]} · ${esc(e.slug)}</small></div><div class="event-admin-actions">
+    (events.map(e=>`<article class="card event-admin"><div><strong>${esc(e.name)}</strong><br><small>${labels[e.kind]} · ${esc(e.slug)}</small></div><div class="event-admin-actions"><button data-manage="${esc(e.slug)}">Gérer</button>
       ${e.kind==='archive'?`<button data-reopen="${esc(e.slug)}">Réouvrir</button>`:`<button data-archive="${esc(e.slug)}">Archiver</button>`}
       <button class="danger" data-delete="${esc(e.slug)}" data-name="${esc(e.name)}">Supprimer</button></div>
       ${currentSlug===e.slug?`<div class="event-media"><h4>Affiche et galerie</h4><label>Affiche de l’événement<input id="event-poster" type="file" accept="image/png,image/jpeg,image/webp,image/gif"></label>
@@ -186,11 +190,12 @@ async function renderEventManagement(){
         <button id="media-save">Enregistrer les images</button></div>`:''}</article>`).join('')||'<p>Aucun événement.</p>');
   $$('[data-archive]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.archive}/kind`,{method:'PUT',body:JSON.stringify({kind:'archive'})}); status('Événement archivé'); await renderEventManagement(); });
   $$('[data-reopen]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.reopen}/kind`,{method:'PUT',body:JSON.stringify({reopen:true})}); status('Événement rouvert'); await renderEventManagement(); });
+  $$('[data-manage]').forEach(b=>b.onclick=async()=>{ await loadAdminEvent(b.dataset.manage); renderAdmin(); status(`Gestion de ${currentEvent.name}`); });
   $('#media-save')?.addEventListener('click',async()=>{
     const read=file=>new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
     const body={}; if($('#event-poster').files[0]) body.posterImage=await read($('#event-poster').files[0]);
     if($('#event-gallery').files.length) body.galleryImages=await Promise.all([...$('#event-gallery').files].map(read));
-    await adminApi(`/api/admin/events/${currentSlug}/media`,{method:'PUT',body:JSON.stringify(body)}); status('Affiche et galerie enregistrées'); await loadEvent(currentSlug); renderAdmin();
+    await adminApi(`/api/admin/events/${currentSlug}/media`,{method:'PUT',body:JSON.stringify(body)}); status('Affiche et galerie enregistrées'); await loadAdminEvent(currentSlug); renderAdmin();
   });
   $$('[data-delete]').forEach(b=>b.onclick=async()=>{ if(!confirm(`Supprimer définitivement « ${b.dataset.name} » et tous ses résultats ?`)) return;
     await adminApi(`/api/admin/events/${b.dataset.delete}`,{method:'DELETE'}); if(currentSlug===b.dataset.delete){ currentEvent=null; currentSlug=null; } status('Événement supprimé'); await renderEventManagement(); });
@@ -205,7 +210,7 @@ function renderAdmin(){
   $('[data-apanel="manches"]').innerHTML=`<h3>Manches (onglet Circuit)</h3>`+
     ((ev.data.circuitRounds||[]).map(r=>`<div class="card">${esc(r.id)} — ${esc(r.label||TBC)} · ${esc(r.date||'Date à confirmer')}
       <button data-del-round="${esc(r.id)}">Supprimer</button></div>`).join('')||`<p>${TBC} — ajoutez une fiche via l'onglet Circuits.</p>`);
-  $$('[data-del-round]').forEach(b=>b.addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}/circuits/${encodeURIComponent(b.dataset.delRound)}`,{method:'DELETE'}); await loadEvent(slug); renderAdmin(); }));
+  $$('[data-del-round]').forEach(b=>b.addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}/circuits/${encodeURIComponent(b.dataset.delRound)}`,{method:'DELETE'}); await loadAdminEvent(slug); renderAdmin(); }));
   // Commission: correction des brouillons, publication et pénalités après publication
   renderCommission().catch(e=>status(`Commission indisponible : ${e.message}`));
   // Pilotes: noms affichés librement choisis (manualDrivers), identifiants pseudonymisés figés
@@ -215,7 +220,7 @@ function renderAdmin(){
   $('#drivers-save')?.addEventListener('click',async()=>{ const manual={};
     $$('[data-driver-name]').forEach(i=>manual[i.dataset.driverName]=i.value);
     await adminApi(`/api/admin/events/${slug}/drivers`,{method:'PUT',body:JSON.stringify({manualDrivers:manual})});
-    status('Noms enregistrés'); await loadEvent(slug); renderAdmin(); });
+    status('Noms enregistrés'); await loadAdminEvent(slug); renderAdmin(); });
   // Données: export / réimport JSON complet de l'événement
   $('[data-apanel="donnees"]').innerHTML=`<h3>Données</h3><button id="data-export">Exporter (JSON)</button>
     <textarea id="data-import" rows="6" cols="70" placeholder="Coller un événement JSON complet"></textarea>
@@ -223,7 +228,7 @@ function renderAdmin(){
   $('#data-export').addEventListener('click',()=>{ const a=document.createElement('a');
     a.href=URL.createObjectURL(new Blob([JSON.stringify(ev,null,2)],{type:'application/json'})); a.download=`${slug}.json`; a.click(); });
   $('#data-go').addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}`,{method:'PUT',body:$('#data-import').value});
-    status('Données réimportées'); await loadEvent(slug); renderAdmin(); });
+    status('Données réimportées'); await loadAdminEvent(slug); renderAdmin(); });
   $('#data-del').addEventListener('click',async()=>{ if(confirm('Supprimer cet événement ?')){ await adminApi(`/api/admin/events/${slug}`,{method:'DELETE'}); status('Événement supprimé'); } });
   // La création et la gestion des événements sont globales (renderEventManagement).
   // Serveurs AH
@@ -232,7 +237,7 @@ function renderAdmin(){
     `<div class="card"><input data-srv-name="${i}" value="${esc(s.name||'')}"> <input data-srv-url="${i}" value="${esc(s.url||s.resultsUrl||'')}" size="50"></div>`).join('')+
     `<button id="srv-add">Ajouter un serveur</button> <button id="srv-save">Enregistrer</button>`;
   const collectServers=()=>[...document.querySelectorAll('[data-srv-url]')].map(u=>({name:$(`[data-srv-name="${u.dataset.srvUrl}"]`).value,url:u.value}));
-  $('#srv-add').addEventListener('click',async()=>{ servers.push({name:'',url:''}); await adminApi(`/api/admin/events/${slug}/servers`,{method:'PUT',body:JSON.stringify({servers})}); await loadEvent(slug); renderAdmin(); });
+  $('#srv-add').addEventListener('click',async()=>{ servers.push({name:'',url:''}); await adminApi(`/api/admin/events/${slug}/servers`,{method:'PUT',body:JSON.stringify({servers})}); await loadAdminEvent(slug); renderAdmin(); });
   $('#srv-save').addEventListener('click',async()=>{ await adminApi(`/api/admin/events/${slug}/servers`,{method:'PUT',body:JSON.stringify({servers:collectServers()})}); status('Serveurs enregistrés'); });
   // Global: exclusions du classement Discord
   adminApi('/api/admin/global/exclusions').then(({globalExclusions=[]})=>{
