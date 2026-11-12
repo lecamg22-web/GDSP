@@ -21,7 +21,7 @@ function shell({title,description,canonical,body}){
 <link rel="stylesheet" href="/theme.css">
 </head><body><a class="skip-link" href="#contenu">Aller au contenu</a><header class="site-header"><div class="header-inner">
 <a class="brand" href="/" aria-label="GDSP — accueil"><span class="brand-mark" aria-hidden="true">GDSP</span><span><span class="brand-name">Gentleman Drivers Project</span><span class="brand-subtitle">La piste, entre gentlemen</span></span></a>
-<nav class="site-nav" aria-label="Navigation principale"><a href="/">Accueil</a><a href="/global">Classement global</a><a class="nav-highlight" href="/index.html">Espace membre</a></nav>
+<nav class="site-nav" aria-label="Navigation principale"><a href="/">Accueil</a><a class="nav-events" href="/#championnats">Événements</a><a href="/global">Classement global</a><a class="nav-highlight" href="/index.html">Espace membre</a></nav>
 </div></header><main id="contenu">${body}</main>
 <footer class="site-footer"><div class="footer-inner"><span>© Gentleman Drivers Project · Assetto Corsa historique</span><span>Compétition le mercredi. Arsouille entre copains toujours.</span></div></footer>
 <script src="/site.js" defer></script></body></html>`;
