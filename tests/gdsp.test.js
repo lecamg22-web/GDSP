@@ -398,7 +398,7 @@ test('manche journalière multi-courses et barème pole/double',async()=>{
   const points=extractPointsConfig({Classes:[{PointsConfig:{Points:{1:30,2:24},PolePositionPoints:2,DoublePoints:true}}]});
   assert.deepEqual(points.scale,[30,24]); assert.equal(points.polePoints,2); assert.equal(points.coefficient,2);
   const app=createFrontendApp({fetchJson:async url=>url.endsWith('/api/stats')?{}:{slug:'e',name:'E',points_config:points,data:{sessions:[],eventInfo:{}}}});
-  const page=await http(app,'GET','/evenements/e'); assert.match(page.body,/Pole position : <strong>\+2 points/); assert.match(page.body,/manche comptant double/);
+  const page=await http(app,'GET','/evenements/e'); assert.match(page.body,/Pole <strong>\+2<\/strong>/); assert.match(page.body,/manche comptant double/);
 });
 test('présentation enrichie: calendrier, nom dédupliqué, duels et statistiques',async()=>{
   const {cleanEventName,eventInsights}=require('../backend/lib/eventPresentation');
