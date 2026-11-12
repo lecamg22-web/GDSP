@@ -63,7 +63,8 @@ function cleanTrackName(value){
 function nameRounds(sessions=[]){
   const ordered=[...sessions].sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
   const races=ordered.filter(s=>s.type==='RACE');
-  races.forEach((race,i)=>{ race.roundNumber=i+1; race.label=`Manche ${i+1}`; });
+  const days=[...new Set(races.map(r=>String(r.date||'').slice(0,10)))];
+  races.forEach(race=>{ const day=String(race.date||'').slice(0,10), sameDay=races.filter(r=>String(r.date||'').slice(0,10)===day); race.roundNumber=days.indexOf(day)+1; race.label=`Manche ${race.roundNumber}${sameDay.length>1?` · Course ${sameDay.indexOf(race)+1}`:''}`; });
   ordered.filter(s=>s.type==='QUALIFY').forEach(q=>{
     const race=races.find(r=>String(r.date||'')>=String(q.date||''))||races[races.length-1];
     if(race){ q.roundNumber=race.roundNumber; q.label=race.label; }

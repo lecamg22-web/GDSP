@@ -375,6 +375,20 @@ test('manches chronologiques, barème importé et médias protégés',async()=>{
   const frontend=fs.readFileSync(path.join(__dirname,'..','frontend','app.js'),'utf8');
   assert.match(frontend,/Barème de points/); assert.match(frontend,/event-gallery/); assert.match(frontend,/event-poster/);
 });
+test('manche journalière multi-courses et barème pole/double',async()=>{
+  const {calendar}=require('../backend/lib/eventPresentation');
+  const {extractPointsConfig}=require('../backend/lib/ahChampionships');
+  const event={data:{sessions:[
+    {type:'QUALIFY',date:'2026-02-01T18:00:00',track:'monza'},
+    {type:'RACE',date:'2026-02-01T20:00:00',track:'monza',results:[{driverName:'Alice',position:1}]},
+    {type:'RACE',date:'2026-02-01T21:00:00',track:'monza',results:[{driverName:'Bob',position:1}]},
+    {type:'RACE',date:'2026-02-02T20:00:00',track:'spa',results:[]}]}};
+  const cal=calendar(event); assert.equal(cal.length,2); assert.equal(cal[0].raceCount,2); assert.equal(cal[0].label,'Manche 1'); assert.deepEqual(cal[0].winners.map(w=>w.driverName),['Alice','Bob']);
+  const points=extractPointsConfig({Classes:[{PointsConfig:{Points:{1:30,2:24},PolePositionPoints:2,DoublePoints:true}}]});
+  assert.deepEqual(points.scale,[30,24]); assert.equal(points.polePoints,2); assert.equal(points.coefficient,2);
+  const app=createFrontendApp({fetchJson:async url=>url.endsWith('/api/stats')?{}:{slug:'e',name:'E',points_config:points,data:{sessions:[],eventInfo:{}}}});
+  const page=await http(app,'GET','/evenements/e'); assert.match(page.body,/Pole position : <strong>\+2 points/); assert.match(page.body,/manche comptant double/);
+});
 test('présentation enrichie: calendrier, nom dédupliqué, duels et statistiques',async()=>{
   const {cleanEventName,eventInsights}=require('../backend/lib/eventPresentation');
   assert.equal(cleanEventName('Open R8 / Open R8 Open R8'),'Open R8');
@@ -382,7 +396,7 @@ test('présentation enrichie: calendrier, nom dédupliqué, duels et statistique
     {type:'QUALIFY',date:'2026-01-01T19:00:00',results:[{driverId:'a',driverName:'Alice',position:2},{driverId:'b',driverName:'Bob',position:1}]},
     {type:'RACE',date:'2026-01-01T20:00:00',track:'ks_clermont1965',results:[{driverId:'a',driverName:'Alice',position:1,totalTimeSeconds:100,bestLapSeconds:50,laps:2},{driverId:'b',driverName:'Bob',position:2,totalTimeSeconds:103,bestLapSeconds:51,laps:2}],events:[],laps:[{driverId:'a',timeSeconds:50,cuts:0},{driverId:'a',timeSeconds:50,cuts:0}]}],pendingSessions:[],penMap:{}}}]);
   const app=createApp(store), pub=await http(app,'GET','/api/events/stats');
-  assert.equal(pub.body.name,'Open'); assert.equal(pub.body.data.autoCalendar[0].label,'Manche 1'); assert.equal(pub.body.data.autoCalendar[0].winner,'Alice');
+  assert.equal(pub.body.name,'Open'); assert.equal(pub.body.data.autoCalendar[0].label,'Manche 1'); assert.equal(pub.body.data.autoCalendar[0].winners[0].driverName,'Alice');
   const insights=(await http(app,'GET','/api/events/stats/insights')).body;
   assert.equal(insights.summary.participants,2); assert.equal(insights.summary.totalLaps,4); assert.equal(insights.races[0].results[0].gained,1);
   assert.equal(insights.drivers.find(d=>d.driverId==='a').wins,1); assert.equal(insights.tracks[0].track,'Clermont 1965');
