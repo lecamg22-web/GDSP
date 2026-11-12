@@ -17,11 +17,14 @@ function computeStandings(event, penaltiesBySession={}){
       || event.data?.penMap?.[race.date] || event.data?.penMap?.[`${race.date}|RACE`] || [];
     const ranked=applyPenalties(race.results||[], pm);
     const pole=poleDriverId(event,race);
+    const bestLap=[...(race.results||[])].filter(r=>r.bestLapSeconds).sort((a,b)=>a.bestLapSeconds-b.bestLapSeconds)[0]?.driverId;
+    const sameDay=raceSessions(event).filter(r=>String(r.date||'').slice(0,10)===String(race.date||'').slice(0,10));
+    const multiplier=sameDay.indexOf(race)===1?Number(cfg.secondRaceMultiplier)||cfg.coefficient:cfg.coefficient;
     for(const r of ranked){
       if(!perDriver.has(r.driverId)) perDriver.set(r.driverId,{driverId:r.driverId,driverName:r.driverName,roundPoints:[],wins:0,races:0});
       const d=perDriver.get(r.driverId); d.driverName=r.driverName||d.driverName;
       while(d.roundPoints.length<roundIndex) d.roundPoints.push(0);
-      d.roundPoints[roundIndex]=pointsForResult(r,cfg,{isPole:r.driverId===pole});
+      d.roundPoints[roundIndex]=pointsForResult(r,cfg,{isPole:r.driverId===pole,isBestLap:r.driverId===bestLap,multiplier});
       d.races++; if(r.position===1) d.wins++;
     }
     for(const d of perDriver.values()) while(d.roundPoints.length<=roundIndex) d.roundPoints.push(0);

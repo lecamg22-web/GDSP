@@ -10,13 +10,14 @@ function raceDistancePercent(result){
   if(result.laps!=null && result.totalLaps) return result.laps/result.totalLaps*100;
   return 100;
 }
-function pointsForResult(result, config, {isPole=false}={}){
+function pointsForResult(result, config, {isPole=false,isBestLap=false,multiplier=null}={}){
   const cfg=normalizePointsConfig(config);
   if(raceDistancePercent(result) < cfg.minDistancePercent) return 0;
   const pos = result.position ?? result.Position;
   let pts = (pos>=1 && cfg.scale[pos-1]!=null) ? cfg.scale[pos-1] : 0;
   if(isPole) pts += cfg.polePoints;
-  return pts * cfg.coefficient;
+  if(isBestLap) pts += Number(cfg.bestLapPoints)||0;
+  return pts * (multiplier??cfg.coefficient);
 }
 /** Drop the `jokers` lowest-scoring rounds. Returns {total, droppedRoundIndexes, counted}. */
 function applyJokers(roundPoints, jokers=0){

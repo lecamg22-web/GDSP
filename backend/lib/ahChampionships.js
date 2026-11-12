@@ -46,14 +46,20 @@ async function listChampionships(url=DEFAULT_CHAMPIONSHIPS_URL,opts={}){
   return parseChampionshipsHtml(html,indexUrl);
 }
 function extractPointsConfig(raw){
-  const candidates=[raw.Points,raw.RacePoints,raw.PointsConfig,...(Array.isArray(raw.Classes)?raw.Classes.flatMap(c=>[c.Points,c.RacePoints,c.PointsConfig]):[])];
+  const classPoints=Array.isArray(raw.Classes)?raw.Classes.flatMap(c=>[c.Points,c.RacePoints,c.PointsConfig]):[];
+  const candidates=[raw.Points,raw.RacePoints,raw.PointsConfig,...classPoints];
   const value=candidates.find(v=>Array.isArray(v)||v&&typeof v==='object'); if(!value) return null;
-  const source=Array.isArray(value)?{scale:value}:value;
-  const rawScale=source.scale||source.Scale||source.Points||source.RacePoints||[];
+  let source=Array.isArray(value)?{scale:value}:value;
+  if(!source.Places&&!source.scale){
+    const container=source.Points&&typeof source.Points==='object'?source.Points:source;
+    const nested=Object.values(container).find(v=>v&&Array.isArray(v.Places)); if(nested) source={...source,...nested};
+  }
+  const rawScale=source.Places||source.scale||source.Scale||source.Points||source.RacePoints||[];
   const scale=(Array.isArray(rawScale)?rawScale:Object.keys(rawScale).sort((a,b)=>Number(a)-Number(b)).map(k=>rawScale[k])).map(Number).filter(Number.isFinite);
   if(!scale.length) return null;
+  const second=Number(source.SecondRaceMultiplier??source.secondRaceMultiplier??1)||1;
   const double=!!(source.doublePoints??source.DoublePoints??source.IsDoublePoints??raw.DoublePoints);
-  return {scale,polePoints:Number(source.polePoints??source.PolePoints??source.PolePositionPoints??source.Pole??0)||0,coefficient:double?2:Number(source.coefficient??source.Coefficient??source.PointsMultiplier??1)||1,jokers:0,minDistancePercent:75};
+  return {scale,polePoints:Number(source.PolePosition??source.polePoints??source.PolePoints??source.PolePositionPoints??source.Pole??0)||0,bestLapPoints:Number(source.BestLap??source.bestLapPoints??0)||0,mostLapsLedPoints:Number(source.MostLapsLed??source.mostLapsLedPoints??0)||0,coefficient:double?2:Number(source.coefficient??source.Coefficient??source.PointsMultiplier??1)||1,secondRaceMultiplier:second,jokers:0,minDistancePercent:75};
 }
 async function readChampionship(url,opts={}){
   const target=championshipExportUrl(url), raw=await (opts.fetchJson||fetchJson)(target.exportUrl);

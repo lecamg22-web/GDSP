@@ -375,6 +375,17 @@ test('manches chronologiques, barème importé et médias protégés',async()=>{
   const frontend=fs.readFileSync(path.join(__dirname,'..','frontend','app.js'),'utf8');
   assert.match(frontend,/Barème de points/); assert.match(frontend,/event-gallery/); assert.match(frontend,/event-poster/);
 });
+test('barème AssettoHosting réel: Places, pole, meilleur tour et deuxième course double',()=>{
+  const {extractPointsConfig}=require('../backend/lib/ahChampionships');
+  const cfg=extractPointsConfig({Classes:[{Points:{Places:[20,15,10],BestLap:1,PolePosition:2,MostLapsLed:3,SecondRaceMultiplier:2}}]});
+  assert.deepEqual(cfg.scale,[20,15,10]); assert.equal(cfg.polePoints,2); assert.equal(cfg.bestLapPoints,1); assert.equal(cfg.mostLapsLedPoints,3); assert.equal(cfg.secondRaceMultiplier,2);
+  const results=[{driverId:'a',driverName:'A',position:1,bestLapSeconds:50,distancePercent:100},{driverId:'b',driverName:'B',position:2,bestLapSeconds:51,distancePercent:100}];
+  const sessions=[{type:'QUALIFY',track:'Monza',date:'2026-01-01T18:00:00',results:[{driverId:'a',bestLapSeconds:49}]},
+    {type:'RACE',track:'Monza',date:'2026-01-01T20:00:00',results},{type:'RACE',track:'Monza',date:'2026-01-01T21:00:00',results}];
+  const standings=computeStandings({points_config:cfg,data:{sessions,penMap:{}}});
+  assert.deepEqual(standings.find(d=>d.driverId==='a').roundPoints,[23,46]); // (20+2+1), puis (20+2+1)×2
+  const nested=extractPointsConfig({Points:{'class-id':{Places:[12,8],PolePosition:1}}}); assert.deepEqual(nested.scale,[12,8]);
+});
 test('manche journalière multi-courses et barème pole/double',async()=>{
   const {calendar}=require('../backend/lib/eventPresentation');
   const {extractPointsConfig}=require('../backend/lib/ahChampionships');
