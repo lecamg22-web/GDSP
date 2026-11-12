@@ -126,12 +126,15 @@ test('thème vintage premium: appliqué au SSR et à l’interface applicative',
   assert.match(home.body,/class="hero"/);
   assert.match(home.body,/class="stats-grid"/);
   assert.match(home.body,/class="nav-events" href="\/#championnats">Événements<\/a>/);
+  assert.match(home.body,/href="\/index.html">Administration<\/a>/);
   assert.match(home.body,/La piste,/);
   const css=fs.readFileSync(path.join(__dirname,'..','frontend','public','theme.css'),'utf8');
   assert.match(css,/--ink: #102a32/);
   assert.match(css,/--page: #e9e0cb/);
   const html=fs.readFileSync(path.join(__dirname,'..','frontend','public','index.html'),'utf8');
   assert.match(html,/class="app-hero"/);
+  assert.doesNotMatch(html,/id="tabs"/); assert.doesNotMatch(html,/data-panel="standings"/);
+  assert.match(html,/Administration\. <em>Vos événements\./);
   assert.match(html,/class="nav-events" href="\/#championnats">Événements<\/a>/);
   assert.match(css,/\.site-nav \.nav-events \{ display: inline/);
   assert.doesNotMatch(html,/color-scheme:dark/);
