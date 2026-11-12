@@ -39,7 +39,7 @@ function createFrontendApp({fetchJson=defaultFetchJson, siteUrl=process.env.SITE
   }catch{ return unavailable(res); } });
   app.get('/',async(req,res)=>{ try{
     const [events,stats]=await Promise.all([fetchJson(`${backendBase()}/api/events`),fetchJson(`${backendBase()}/api/stats`)]);
-    const kindLabels={championship:'Championnat',open:'Open',archive:'Archive'};
+    const kindLabels={championship:'Championnat',cup:'Cup',open:'Open',archive:'Archive'};
     const cards=kind=>events.filter(e=>e.kind===kind).map(e=>`<article class="event-card"><div><span class="event-kind">${kindLabels[kind]}</span><h3><a href="/evenements/${esc(e.slug)}">${esc(e.name)}</a></h3></div><span class="event-link">Voir l’événement →</span></article>`).join('')||'<p class="empty-card">Programme à confirmer.</p>';
     const section=(kind,title,subtitle,id)=>`<section class="section" id="${id}"><div class="section-heading"><div><p class="eyebrow">Le programme GDSP</p><h2>${title}</h2></div><p>${subtitle}</p></div><div class="event-grid">${cards(kind)}</div></section>`;
     const body=`<section class="hero"><div class="hero-copy"><p class="eyebrow">Assetto Corsa · Simracing historique</p>
@@ -49,6 +49,7 @@ function createFrontendApp({fetchJson=defaultFetchJson, siteUrl=process.env.SITE
 <div class="hero-emblem" aria-hidden="true"><div class="emblem-ring"><div><div class="emblem-gdsp">GDSP</div><div class="emblem-year">Gentleman Drivers</div></div></div><p>Fair-play · Historique<br>Entre copains</p></div></section>
 <section class="stats-grid" aria-label="Statistiques globales"><div class="stat"><strong class="stat-value">${stats.events}</strong><span class="stat-label">Événement${stats.events>1?'s':''}</span></div><div class="stat"><strong class="stat-value">${stats.races}</strong><span class="stat-label">Course${stats.races>1?'s':''}</span></div><div class="stat"><strong class="stat-value">${stats.drivers}</strong><span class="stat-label">Pilote${stats.drivers>1?'s':''}</span></div></section>
 ${section('championship','Championnats en cours','La régularité récompensée, course après course.','championnats')}
+${section('cup','Cups','Des mini-championnats intenses, sur quelques manches.','cups')}
 ${section('open','Opens','Une soirée, un plateau, une nouvelle histoire.','opens')}
 ${section('archive','Archives','Les saisons et les souvenirs du club.','archives')}
 <aside class="club-banner"><div><p class="eyebrow">Rejoindre le club</p><h2>Plus qu’un championnat, une bande de copains.</h2><p>Respect en piste, aucune aide moderne et fair-play gentleman driver. Retrouvez la communauté sur Discord pour les prochaines soirées de course.</p></div><a class="button" href="https://discord.com">Rejoindre le Discord</a></aside>`;
