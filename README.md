@@ -6,8 +6,9 @@ historiques de GDSP. Interface entièrement en français, consultable sans compt
 ## Arborescence (justifiée)
 
 ```
+server.js            Service unifié Render : API + SSR + statiques (PORT, 0.0.0.0)
 backend/
-  server.js          Entrée Render "backend" (PORT, 0.0.0.0)
+  server.js          Entrée API seule, conservée pour le développement
   app.js             API REST Express (publique + admin Bearer) — createApp(store) testable
   lib/
     store.js         Persistance : MemoryStore (tests/local) ou PostgresStore Neon via HTTPS
@@ -23,9 +24,9 @@ backend/
     ahServers.js     Scan des serveurs AssettoHosting
     auth.js          Login admin + jetons Bearer HMAC (ADMIN_USERNAME/ADMIN_PASSWORD)
 frontend/
-  server.js          Entrée Render "frontend" (PORT, 0.0.0.0)
+  server.js          Entrée frontend seul, conservée pour le développement
   app.js             SSR (accueil, /evenements/:slug, /global), SEO, sitemap, robots,
-                     proxy /api/* -> BACKEND_URL, 503 + Retry-After si backend KO
+                     proxy /api/* uniquement en mode services séparés
   public/
     index.html       HTML/CSS (aucun framework, aucun build)
     site.js          TOUT le JavaScript front, vanilla, un seul fichier
@@ -34,7 +35,7 @@ tools/
                      modFiles.js (surfaces.ini KEY=, overlays.ini secteurs), drive.js (Drive sans clé API)
   compact-fastlane.js, import-circuit-drive.js, import-results.js
 tests/gdsp.test.js   node --test uniquement
-render.yaml          Deux services Render (frontend + backend)
+render.yaml          Un seul service Render unifié (frontend + backend)
 ```
 
 Une seule dépendance de production : `express` (voir `package.json`).
@@ -45,8 +46,9 @@ Tout le reste est en bibliothèque standard Node (`node:crypto`, `node:https`, `
 | Commande | Effet |
 |---|---|
 | `npm install` | Installe l'unique dépendance (`express`) |
-| `npm test` | Lance la suite `node --test tests/` |
-| `npm run start:backend` | API sur `PORT` (défaut 4000) |
+| `npm test` | Lance la suite `node --test tests/*.test.js` |
+| `npm start` | Service unifié sur `PORT` (défaut 3000), sans `BACKEND_URL` |
+| `npm run start:backend` | API seule sur `PORT` (défaut 4000) |
 | `npm run start:frontend` | Site + proxy `/api/*` sur `PORT` (défaut 3000), `BACKEND_URL` requis en prod |
 | `node tools/compact-fastlane.js <fast_lane.ai> [out.json]` | Régénère le JSON compact d'un tracé (~220 points à 0,1 m + virages en fraction de tour, détectés sur la ligne **pleine résolution**) |
 | `node tools/import-results.js <slug> <fichier.json...>` | Import manuel unitaire ou en masse (env. `BACKEND_URL`, `ADMIN_TOKEN`) |
@@ -72,7 +74,8 @@ en millisecondes, distance déduite de `NumLaps`, collisions imbriquées
 
 - Backend : `PORT`, `DATABASE_URL` (Neon/PostgreSQL ; absent = mémoire), `NEON_API_KEY` (optionnel),
   `ADMIN_USERNAME`, `ADMIN_PASSWORD`.
-- Frontend : `PORT`, `BACKEND_URL`, `SITE_URL` (canonical/sitemap).
+- Service unifié : `PORT`, `SITE_URL` (canonical/sitemap). `BACKEND_URL` est inutile.
+- Frontend séparé (développement uniquement) : `PORT`, `BACKEND_URL`, `SITE_URL`.
 
 ## Règles métier implémentées et testées
 
@@ -113,6 +116,8 @@ Côté public, chaque pilote a un profil individuel (courses, meilleur résultat
 
 ## Déploiement Render
 
-Deux services depuis le même dépôt (voir `render.yaml`) : `gdsp-backend` (`node backend/server.js`,
-avec `DATABASE_URL`, `ADMIN_*`) et `gdsp-frontend` (`node frontend/server.js`, avec `BACKEND_URL`
-pointant sur le backend et `SITE_URL` public).
+Un seul service `gdsp-frontend` exécute `node server.js` (voir `render.yaml`) avec `DATABASE_URL`,
+`ADMIN_*` et `SITE_URL`. L'API, les pages SSR, l'application et les fichiers statiques partagent le
+même processus : il n'y a plus de proxy `BACKEND_URL` ni de second service à réveiller. Après validation
+du déploiement unifié, l'ancien service `gdsp-backend` peut être suspendu dans Render pour éviter de
+consommer inutilement le quota gratuit.
