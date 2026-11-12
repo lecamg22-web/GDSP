@@ -61,7 +61,9 @@ ${section('archive','Archives','Les saisons et les souvenirs du club.','archives
     const rounds=e.data.circuitRounds||[];
     const circuitSection = rounds.length?`<section class="section"><h2>Circuits</h2>${rounds.map(r=>`<article class="content-card"><h3>${esc(r.id)} — ${esc(r.label||TBC)}</h3><p>Date : ${esc(r.date||'Date à confirmer')} · Vainqueur : ${esc(r.winner||TBC)}</p></article>`).join('')}</section>`:'';
     const body=`<header class="page-title"><p class="eyebrow">Événement GDSP</p><h1>${esc(e.name)}</h1><p class="page-intro">${esc(info.description||TBC)}</p></header>
-<section class="section content-card"><h2>Calendrier</h2><ul>${calendar}</ul></section>${circuitSection}<div id="app" data-slug="${esc(e.slug)}"></div>`;
+<section class="section content-card"><h2>Calendrier</h2><ul>${calendar}</ul></section>${circuitSection}<div id="app" data-slug="${esc(e.slug)}">
+<nav id="tabs" class="tabs" aria-label="Onglets événement"><button class="active" data-tab="infos">Accueil &amp; Infos</button><button data-tab="standings">Classements</button><button data-tab="results">Résultats</button><button data-tab="circuit" id="tab-circuit" hidden>Circuit</button><button data-tab="drivers">Pilotes</button></nav>
+<section data-panel="infos"></section><section data-panel="standings" hidden></section><section data-panel="results" hidden></section><section data-panel="circuit" hidden></section><section data-panel="drivers" hidden></section></div>`;
     res.send(shell({title:`${e.name} — GDSP`,description:info.description||`Classements et résultats : ${e.name}`,canonical:`${siteUrl}/evenements/${e.slug}`,body}));
   }catch(err){ if(err.status===404) return res.status(404).send(shell({title:'Introuvable — GDSP',description:'',canonical:`${siteUrl}/`,body:'<header class="page-title"><h1>Événement introuvable</h1></header>'})); return unavailable(res); } });
   app.get('/global',async(req,res)=>{ try{ const rows=await fetchJson(`${backendBase()}/api/global`);

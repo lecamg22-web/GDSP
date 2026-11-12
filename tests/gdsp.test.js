@@ -193,6 +193,7 @@ test('SSR sans JS: accueil + événement, canonical, 503+Retry-After si backend 
     :[{slug:'open-1',name:'Open Alfa Romeo',kind:'open'}], siteUrl:'https://gdsp.example'});
   const home=await http(ok,'GET','/'); assert.match(home.body,/Championnats en cours/); assert.match(home.body,/rel="canonical"/);
   const ev=await http(ok,'GET','/evenements/open-1'); assert.match(ev.body,/Alfa uniquement/); assert.doesNotMatch(ev.body,/Lola T290/); // no cross-event label leakage
+  assert.match(ev.body,/data-panel="infos"/); assert.match(ev.body,/data-panel="standings"/); // containers required by site.js
   assert.match((await http(ok,'GET','/robots.txt')).body,/Sitemap:/);
   assert.match((await http(ok,'GET','/sitemap.xml')).body,/evenements\/open-1/);
   const down=createFrontendApp({fetchJson:async()=>{throw new Error('down');}});
