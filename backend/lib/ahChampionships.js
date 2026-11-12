@@ -49,9 +49,11 @@ function extractPointsConfig(raw){
   const candidates=[raw.Points,raw.RacePoints,raw.PointsConfig,...(Array.isArray(raw.Classes)?raw.Classes.flatMap(c=>[c.Points,c.RacePoints,c.PointsConfig]):[])];
   const value=candidates.find(v=>Array.isArray(v)||v&&typeof v==='object'); if(!value) return null;
   const source=Array.isArray(value)?{scale:value}:value;
-  const scale=(source.scale||source.Scale||source.Points||[]).map(Number).filter(Number.isFinite);
+  const rawScale=source.scale||source.Scale||source.Points||source.RacePoints||[];
+  const scale=(Array.isArray(rawScale)?rawScale:Object.keys(rawScale).sort((a,b)=>Number(a)-Number(b)).map(k=>rawScale[k])).map(Number).filter(Number.isFinite);
   if(!scale.length) return null;
-  return {scale,polePoints:Number(source.polePoints??source.PolePoints??0)||0,coefficient:Number(source.coefficient??source.Coefficient??1)||1,jokers:0,minDistancePercent:75};
+  const double=!!(source.doublePoints??source.DoublePoints??source.IsDoublePoints??raw.DoublePoints);
+  return {scale,polePoints:Number(source.polePoints??source.PolePoints??source.PolePositionPoints??source.Pole??0)||0,coefficient:double?2:Number(source.coefficient??source.Coefficient??source.PointsMultiplier??1)||1,jokers:0,minDistancePercent:75};
 }
 async function readChampionship(url,opts={}){
   const target=championshipExportUrl(url), raw=await (opts.fetchJson||fetchJson)(target.exportUrl);

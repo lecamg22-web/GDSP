@@ -9,11 +9,17 @@ function cleanEventName(value){
 function displayTrack(value){ return String(value||'À confirmer').replace(/\.(json|ini|kn5)$/i,'').replace(/^(ks|ac|acf|ah)_/i,'').replace(/[_-]+/g,' ').replace(/([a-z])([0-9]{2,4})/gi,'$1 $2').replace(/\s+/g,' ').trim().replace(/\b\w/g,c=>c.toUpperCase()); }
 function validDate(value){ const d=new Date(value); return Number.isNaN(d.getTime())?null:d.toISOString(); }
 function calendar(event){
-  const races=(event.data.sessions||[]).filter(s=>s.type==='RACE').sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
-  const qualify=(event.data.sessions||[]).filter(s=>s.type==='QUALIFY');
-  return races.map((r,i)=>{ const q=qualify.filter(x=>String(x.date||'')<=String(r.date||'')).sort((a,b)=>String(b.date||'').localeCompare(String(a.date||'')))[0];
-    const winner=r.results?.find(x=>Number(x.position)===1)?.driverName||null;
-    return {round:i+1,label:`Manche ${i+1}`,track:displayTrack(r.track),config:r.trackConfig||null,date:validDate(r.date)||r.date||null,qualifyDate:q?(validDate(q.date)||q.date):null,status:r.results?.length?'Terminée':'À confirmer',winner}; });
+  const sessions=event.data.sessions||[], days=new Map();
+  for(const s of sessions.filter(s=>s.type==='RACE'||s.type==='QUALIFY')){
+    const day=String(s.date||'').slice(0,10)||'date-inconnue';
+    if(!days.has(day))days.set(day,{day,races:[],qualify:[]});
+    days.get(day)[s.type==='RACE'?'races':'qualify'].push(s);
+  }
+  return [...days.values()].sort((a,b)=>a.day.localeCompare(b.day)).map((d,i)=>{
+    d.races.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||''))); d.qualify.sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
+    const winners=d.races.map((r,n)=>({race:n+1,driverName:r.results?.find(x=>Number(x.position)===1)?.driverName||null}));
+    return {round:i+1,label:`Manche ${i+1}`,track:displayTrack(d.races[0]?.track||d.qualify[0]?.track),config:d.races[0]?.trackConfig||null,date:validDate(d.races[0]?.date)||d.races[0]?.date||null,qualifyDate:d.qualify[0]?(validDate(d.qualify[0].date)||d.qualify[0].date):null,raceCount:d.races.length,races:d.races.map((r,n)=>({race:n+1,date:validDate(r.date)||r.date||null,track:displayTrack(r.track)})),winners,status:d.races.some(r=>r.results?.length)?'Terminée':'À confirmer'};
+  });
 }
 function raceAnalyses(event){
   const sessions=event.data.sessions||[], races=sessions.filter(s=>s.type==='RACE').sort((a,b)=>String(a.date||'').localeCompare(String(b.date||'')));
