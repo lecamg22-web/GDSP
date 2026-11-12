@@ -202,7 +202,7 @@ function renderAdmin(){
   // Événements
   $('[data-apanel="evenements"]').innerHTML=`<h3>Événements</h3>
     <input id="ev-slug" placeholder="slug"><input id="ev-name" placeholder="Nom">
-    <select id="ev-kind"><option value="championship">championship</option><option value="open">open</option><option value="archive">archive</option></select>
+    <select id="ev-kind"><option value="championship">Championnat</option><option value="cup">Cup — mini-championnat</option><option value="open">Open</option><option value="archive">Archive</option></select>
     <button id="ev-go">Créer</button>`;
   $('#ev-go').addEventListener('click',async()=>{ await adminApi('/api/admin/events',{method:'POST',
     body:JSON.stringify({slug:$('#ev-slug').value,name:$('#ev-name').value,kind:$('#ev-kind').value})}); status('Événement créé'); });

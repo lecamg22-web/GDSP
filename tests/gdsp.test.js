@@ -11,7 +11,7 @@ const {parseFastLane,compactFastLane,detectCorners}=require('../tools/lib/fastLa
 const {parseSurfaces,parseSectors,validateSectors}=require('../tools/lib/modFiles');
 const {parseDriveFolderHtml,pickCircuitFiles,extractFolderId}=require('../tools/lib/drive');
 const {buildCircuitRound}=require('../backend/lib/circuit');
-const {createApp}=require('../backend/app');
+const {createApp,validateEvent}=require('../backend/app');
 const {MemoryStore,seedIfEmpty}=require('../backend/lib/store');
 const {createFrontendApp}=require('../frontend/app');
 const {createUnifiedApp}=require('../server');
@@ -148,6 +148,16 @@ test('administration mobile: formulaires tactiles et Commission en cartes',()=>{
   assert.match(js,/aria-label="Pénalité du pilote/);
   const html=fs.readFileSync(path.join(__dirname,'..','frontend','public','index.html'),'utf8');
   assert.match(html,/<label>Utilisateur<input/); assert.match(html,/<label>Mot de passe<input/);
+});
+test('Cup: type valide et section entre championnats et opens',async()=>{
+  assert.equal(validateEvent({slug:'cup-test',name:'Cup test',kind:'cup'}).kind,'cup');
+  const app=createFrontendApp({fetchJson:async url=>url.endsWith('/api/stats')?{events:1,races:0,drivers:0}:[{slug:'cup-test',name:'Cup test',kind:'cup'}]});
+  const home=await http(app,'GET','/');
+  const championship=home.body.indexOf('Championnats en cours'), cup=home.body.indexOf('>Cups<'), open=home.body.indexOf('>Opens<');
+  assert.ok(championship>=0&&cup>championship&&open>cup);
+  assert.match(home.body,/href="\/evenements\/cup-test"/);
+  const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
+  assert.match(js,/value="cup">Cup — mini-championnat/);
 });
 async function http(app,method,url,body,headers={}){
   const srv=app.listen(0); await new Promise(r=>srv.once('listening',r));

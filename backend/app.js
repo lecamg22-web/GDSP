@@ -11,7 +11,7 @@ const {buildCircuitRound}=require('./lib/circuit');
 const {listDriveFolder,pickCircuitFiles,downloadUrl,fetchBuffer,fetchText}=require('../tools/lib/drive');
 const {scanServer}=require('./lib/ahServers');
 const {listChampionships,readChampionship}=require('./lib/ahChampionships');
-const EVENT_KINDS=['championship','archive','open'];
+const EVENT_KINDS=['championship','cup','open','archive'];
 function blankData(){ return {sessions:[],pendingSessions:[],penMap:{},manualDrivers:{},customCalendar:{},eventInfo:{},posterImage:null,galleryImages:[],circuitRounds:[],serversAH:[],championshipAH:null}; }
 function publicEvent(event){
   const {pendingSessions,...publishedData}=event.data||{}; // drafts stay private to the Commission
