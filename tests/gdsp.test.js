@@ -14,6 +14,7 @@ const {buildCircuitRound}=require('../backend/lib/circuit');
 const {createApp}=require('../backend/app');
 const {MemoryStore,seedIfEmpty}=require('../backend/lib/store');
 const {createFrontendApp}=require('../frontend/app');
+const {createUnifiedApp}=require('../server');
 
 const GUID='76561198000000001';
 test('anonymisation: déterministe, irréversible en apparence, aucun GUID résiduel',()=>{
@@ -249,6 +250,24 @@ test('proxy frontend: un POST /api/* transmet le corps brut au backend (régress
     const ko=await http(front,'POST','/api/admin/login',{username:'admin',password:'faux'});
     assert.equal(ko.status,401);
   } finally { bsrv.close(); delete process.env.BACKEND_URL; }
+});
+
+test('service unifié: pages, statiques et API sans proxy ni BACKEND_URL externe',async()=>{
+  const previous=process.env.BACKEND_URL;
+  const store=new MemoryStore([{slug:'ev',name:'Événement unifié',kind:'open',data:{sessions:[],pendingSessions:[],penMap:{}}}]);
+  const server=createUnifiedApp(store).listen(0,'127.0.0.1'); await new Promise(r=>server.once('listening',r));
+  process.env.BACKEND_URL=`http://127.0.0.1:${server.address().port}`;
+  const base=process.env.BACKEND_URL;
+  try{
+    const health=await fetch(`${base}/api/health`); assert.equal(health.status,200);
+    const home=await fetch(`${base}/`); assert.equal(home.status,200); assert.match(await home.text(),/Événement unifié/);
+    const css=await fetch(`${base}/theme.css`); assert.equal(css.status,200); assert.match(await css.text(),/--ink: #102a32/);
+    const missing=await fetch(`${base}/api/route-inconnue`); assert.equal(missing.status,404); // no self-proxy loop
+    const app=await fetch(`${base}/index.html`); assert.equal(app.status,200); assert.match(await app.text(),/Administration/);
+  }finally{
+    await new Promise(r=>server.close(r));
+    if(previous==null) delete process.env.BACKEND_URL; else process.env.BACKEND_URL=previous;
+  }
 });
 
 test('format RÉEL AssettoHosting: Result singulier, temps en ms, distance via NumLaps, collisions imbriquées',()=>{

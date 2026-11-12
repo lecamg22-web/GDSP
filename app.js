@@ -26,9 +26,10 @@ function shell({title,description,canonical,body}){
 <footer class="site-footer"><div class="footer-inner"><span>© Gentleman Drivers Project · Assetto Corsa historique</span><span>Compétition le mercredi. Arsouille entre copains toujours.</span></div></footer>
 <script src="/site.js" defer></script></body></html>`;
 }
-function createFrontendApp({fetchJson=defaultFetchJson, siteUrl=process.env.SITE_URL||''}={}){
+function createFrontendApp({fetchJson=defaultFetchJson, siteUrl=process.env.SITE_URL||'', proxy=true}={}){
   const app=express();
-  app.all('/api/*',proxyApi); // BEFORE express.json: proxy pipes the RAW body (a parsed body would never reach the backend)
+  if(proxy) app.all('/api/*',proxyApi); // Separate services: forward the RAW body before parsing JSON.
+  else app.all('/api/*',(req,res)=>res.status(404).json({error:'Route API introuvable'})); // Unified service: never proxy to ourselves.
   app.use(express.json({limit:'25mb'}));
   app.use(express.static(path.join(__dirname,'public'),{index:false})); // index:false: '/' stays SSR (no-JS visitors)
   app.get('/robots.txt',(req,res)=>res.type('text/plain').send(`User-agent: *\nAllow: /\nSitemap: ${siteUrl}/sitemap.xml\n`));
