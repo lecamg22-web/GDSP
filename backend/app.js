@@ -167,8 +167,8 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     if(!event) return res.status(404).json({error:'Événement introuvable'});
     const files=await listDriveFolder(req.body.folderUrl, opts.fetchFn);
     const picked=pickCircuitFiles(files);
-    const fastLaneBuffer=await fetchBuffer(downloadUrl(picked.fastLane.id), opts.fetchFn);
-    const get=async(f)=>f?await fetchText(downloadUrl(f.id), opts.fetchFn):null;
+    const fastLaneBuffer=await fetchBuffer(downloadUrl(picked.fastLane.id,picked.fastLane.resourceKey), opts.fetchFn);
+    const get=async(f)=>f?await fetchText(downloadUrl(f.id,f.resourceKey), opts.fetchFn):null;
     const round=buildCircuitRound({roundId:req.body.roundId||'M1',label:req.body.label,
       fastLaneBuffer, surfacesText:await get(picked.surfaces), overlaysText:await get(picked.overlays), uiTrackText:await get(picked.uiTrack)});
     res.json(round); }catch(e){ e.status=e.status||400; next(e);} });

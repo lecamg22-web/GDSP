@@ -52,7 +52,7 @@ Tout le reste est en bibliothèque standard Node (`node:crypto`, `node:https`, `
 | `npm run start:frontend` | Site + proxy `/api/*` sur `PORT` (défaut 3000), `BACKEND_URL` requis en prod |
 | `node tools/compact-fastlane.js <fast_lane.ai> [out.json]` | Régénère le JSON compact d'un tracé (~220 points à 0,1 m + virages en fraction de tour, détectés sur la ligne **pleine résolution**) |
 | `node tools/import-results.js <slug> <fichier.json...>` | Import manuel unitaire ou en masse (env. `BACKEND_URL`, `ADMIN_TOKEN`) |
-| `node tools/import-circuit-drive.js <slug> <url-dossier-drive> <M1> [libellé]` | Aperçu + (si `BACKEND_URL`/`ADMIN_TOKEN`) enregistrement d'une fiche circuit depuis un dossier Drive public — **aucune clé API Google** |
+| `node tools/import-circuit-drive.js <slug> <url-dossier-drive> <M1> [libellé]` | Aperçu + (si `BACKEND_URL`/`ADMIN_TOKEN`) enregistrement d'une fiche circuit depuis un dossier Drive accessible par lien (y compris `resourcekey`) — **aucune clé API Google** |
 
 ## Serveurs AssettoHosting (import automatique)
 

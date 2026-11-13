@@ -8,8 +8,8 @@ const {buildCircuitRound}=require('../backend/lib/circuit');
   const [slug,folderUrl,roundId='M1',label]=process.argv.slice(2);
   if(!slug||!folderUrl){ console.error('Usage: node tools/import-circuit-drive.js <slug> <driveFolderUrl> <M1> [label]'); process.exit(2); }
   const files=await listDriveFolder(folderUrl); const picked=pickCircuitFiles(files);
-  const get=async f=>f?fetchText(downloadUrl(f.id)):null;
-  const round=buildCircuitRound({roundId,label,fastLaneBuffer:await fetchBuffer(downloadUrl(picked.fastLane.id)),
+  const get=async f=>f?fetchText(downloadUrl(f.id,f.resourceKey)):null;
+  const round=buildCircuitRound({roundId,label,fastLaneBuffer:await fetchBuffer(downloadUrl(picked.fastLane.id,picked.fastLane.resourceKey)),
     surfacesText:await get(picked.surfaces),overlaysText:await get(picked.overlays),uiTrackText:await get(picked.uiTrack)});
   console.log(JSON.stringify(round,null,2));
   if(process.env.BACKEND_URL&&process.env.ADMIN_TOKEN){
