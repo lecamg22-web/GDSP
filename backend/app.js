@@ -163,6 +163,8 @@ function createApp(store=new MemoryStore(seedEvents()), opts={}){
     e.data.penMap=e.data.penMap||{}; e.data.penMap[sessionKey]=[...(e.data.penMap[sessionKey]||[]),{driverId,seconds:Number(seconds)||0}];
     await store.saveEvent(e); res.json({penMap:e.data.penMap}); }catch(e){next(e);} });
   app.post('/api/admin/events/:slug/circuits/drive/preview',requireAdmin,async(req,res,next)=>{ try{
+    const event=await store.getEvent(req.params.slug);
+    if(!event) return res.status(404).json({error:'Événement introuvable'});
     const files=await listDriveFolder(req.body.folderUrl, opts.fetchFn);
     const picked=pickCircuitFiles(files);
     const fastLaneBuffer=await fetchBuffer(downloadUrl(picked.fastLane.id), opts.fetchFn);
