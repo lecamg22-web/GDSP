@@ -9,7 +9,7 @@ const {computeGlobalRatings,regularityScore,levelFor,recencyWeight}=require('../
 const {normalizeSession,mergeSessions}=require('../backend/lib/importResult');
 const {parseFastLane,compactFastLane,detectCorners}=require('../tools/lib/fastLane');
 const {parseSurfaces,parseSectors,validateSectors}=require('../tools/lib/modFiles');
-const {parseDriveFolderHtml,pickCircuitFiles,extractFolderId}=require('../tools/lib/drive');
+const {parseDriveFolderHtml,pickCircuitFiles,extractFolderId,extractFolderRef,folderEmbedUrl,downloadUrl,fetchText}=require('../tools/lib/drive');
 const {buildCircuitRound}=require('../backend/lib/circuit');
 const {createApp,validateEvent}=require('../backend/app');
 const {MemoryStore,seedIfEmpty}=require('../backend/lib/store');
@@ -98,26 +98,35 @@ test('global: pondération 90j, niveaux, minimum 5 courses',()=>{
   const ratings=computeGlobalRatings([ev],{now:new Date('2026-01-02')});
   assert.equal(ratings.find(r=>r.driverId==='a').ranked,false); // only 3 races < 5
 });
-test('drive: id dossier, parsing dossier public, fast_lane obligatoire',()=>{
+test('drive: id dossier, parsing dossier public, fast_lane obligatoire et resource keys',async()=>{
   assert.equal(extractFolderId('https://drive.google.com/drive/folders/ABC1234567_-x'),'ABC1234567_-x');
   const files=parseDriveFolderHtml('<div data-id="FILEID123456"><span class="flip-entry-title">fast_lane.ai</span></div>');
   assert.equal(files[0].name,'fast_lane.ai'); assert.equal(pickCircuitFiles(files).fastLane.id,'FILEID123456');
   assert.throws(()=>pickCircuitFiles([{id:'x',name:'surfaces.ini'}]),/fast_lane\.ai/);
+  assert.deepEqual(extractFolderRef('https://drive.google.com/drive/folders/FOLDERID12345?resourcekey=FOLDERKEY12345'),{id:'FOLDERID12345',resourceKey:'FOLDERKEY12345'});
+  assert.equal(folderEmbedUrl('FOLDERID12345','FOLDERKEY12345'),'https://drive.google.com/embeddedfolderview?id=FOLDERID12345&resourcekey=FOLDERKEY12345#list');
+  assert.equal(downloadUrl('FILEID123456','FILEKEY123456'),'https://drive.google.com/uc?export=download&id=FILEID123456&resourcekey=FILEKEY123456');
+  await assert.rejects(fetchText('https://drive.google.com/example',async()=>new Response('',{status:401})),/Tous les utilisateurs disposant du lien/);
 });
 test('aperçu circuit Drive: récupère le tracé pour l’événement sélectionné',async()=>{
   process.env.ADMIN_USERNAME='admin'; process.env.ADMIN_PASSWORD='secret';
   const bytes=Buffer.alloc(36); bytes.writeInt32LE(1,4);
   bytes.writeFloatLE(10,16); bytes.writeFloatLE(3,20); bytes.writeFloatLE(20,24); bytes.writeFloatLE(100,28); bytes.writeUInt32LE(1,32);
-  const fetchFn=async url=>url.includes('embeddedfolderview')
-    ?new Response('<div data-id="FILEID123456"><span class="flip-entry-title">fast_lane.ai</span></div>')
-    :new Response(bytes);
+  const requested=[];
+  const fetchFn=async url=>{ requested.push(url); return url.includes('embeddedfolderview')
+    ?new Response('<div data-id="FILEID123456"><span class="flip-entry-title">fast_lane.ai</span><span data-resourcekey="FILEKEY123456"></span></div>')
+    :new Response(bytes); };
   const store=new MemoryStore([{slug:'open-1',name:'Open 1',kind:'open',data:{sessions:[],circuitRounds:[]}}]);
   const app=createApp(store,{fetchFn});
   const login=await http(app,'POST','/api/admin/login',{username:'admin',password:'secret'}), H={Authorization:`Bearer ${login.body.token}`};
-  const preview=await http(app,'POST','/api/admin/events/open-1/circuits/drive/preview',{folderUrl:'https://drive.google.com/drive/folders/ABC1234567'},H);
+  const preview=await http(app,'POST','/api/admin/events/open-1/circuits/drive/preview',{folderUrl:'https://drive.google.com/drive/folders/ABC1234567?resourcekey=FOLDERKEY123456'},H);
   assert.equal(preview.status,200); assert.equal(preview.body.id,'M1'); assert.equal(preview.body.layout.points.length,1);
+  assert.match(requested[0],/resourcekey=FOLDERKEY123456/); assert.match(requested[1],/resourcekey=FILEKEY123456/);
   const missing=await http(app,'POST','/api/admin/events/wrong-event/circuits/drive/preview',{folderUrl:'https://drive.google.com/drive/folders/ABC1234567'},H);
   assert.equal(missing.status,404); assert.equal(missing.body.error,'Événement introuvable');
+  const deniedApp=createApp(store,{fetchFn:async()=>new Response('',{status:401})});
+  const denied=await http(deniedApp,'POST','/api/admin/events/open-1/circuits/drive/preview',{folderUrl:'https://drive.google.com/drive/folders/ABC1234567'},H);
+  assert.equal(denied.status,400); assert.match(denied.body.error,/Tous les utilisateurs disposant du lien/);
   const js=fs.readFileSync(path.join(__dirname,'..','frontend','public','site.js'),'utf8');
   assert.match(js,/const eventSlug=currentSlug, preview=/);
   assert.match(js,/adminApi\(`\/api\/admin\/events\/\$\{encodeURIComponent\(eventSlug\)\}\/circuits\/drive\/preview`/);

@@ -44,7 +44,8 @@
       <section data-apanel="donnees" hidden></section><section data-apanel="evenements" hidden></section>
       <section data-apanel="serveurs" hidden></section>
       <section data-apanel="circuits">
-        <form id="drive-import"><input name="folderUrl" placeholder="URL dossier Google Drive partagé" size="50"><button>Aperçu du circuit Drive</button></form>
+        <form id="drive-import"><label>URL du dossier Drive partagé<input name="folderUrl" type="text" placeholder="Collez le lien complet, resourcekey comprise si présente" size="50" required></label><button>Aperçu du circuit Drive</button></form>
+        <p>Dans Drive, réglez l’accès général sur « Tous les utilisateurs disposant du lien » — Lecteur — pour le dossier et ses fichiers.</p>
         <button id="drive-save" type="button">Enregistrer cette fiche dans l'événement courant</button>
         <div id="drive-preview"></div>
       </section>
