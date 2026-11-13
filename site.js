@@ -78,13 +78,32 @@ async function init(){
     const fd=new FormData(login); const data=await api('/api/admin/login',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(Object.fromEntries(fd))});
     localStorage.setItem('gdsp-token',data.token); $('#admin-body').hidden=false; renderAdmin(); status('Connecté'); });
   const drive=$('#drive-import'); if(drive) drive.addEventListener('submit',async ev=>{ ev.preventDefault();
-    const fd=new FormData(drive);
-    const round=await api(`/api/admin/events/${encodeURIComponent(slug)}/circuits/drive/preview`,{method:'POST',
-      headers:{'Content-Type':'application/json',Authorization:`Bearer ${localStorage.getItem('gdsp-token')||''}`},
-      body:JSON.stringify({folderUrl:fd.get('folderUrl'),roundId:'M1'})});
-    lastDriveRound=round; $('#drive-preview').innerHTML=renderCircuit(round); });
-  const dsave=$('#drive-save'); if(dsave) dsave.addEventListener('click',async()=>{ if(!lastDriveRound) return alert('Générez d’abord un aperçu Drive');
-    await adminApi(`/api/admin/events/${encodeURIComponent(slug)}/circuits`,{method:'POST',body:JSON.stringify(lastDriveRound)}); status('Fiche circuit enregistrée'); await loadEvent(slug); renderAdmin(); });
+    const eventSlug=currentSlug, preview=$('#drive-preview');
+    if(!eventSlug){ status('Choisissez d’abord un événement avec le bouton Gérer.'); return; }
+    const fd=new FormData(drive); lastDriveRound=null;
+    if(preview) preview.textContent='Lecture du dossier Google Drive…';
+    status('Génération de l’aperçu du circuit…');
+    try{
+      const round=await adminApi(`/api/admin/events/${encodeURIComponent(eventSlug)}/circuits/drive/preview`,{method:'POST',
+        body:JSON.stringify({folderUrl:fd.get('folderUrl'),roundId:'M1'})});
+      lastDriveRound=round;
+      if(preview) preview.innerHTML=renderCircuit(round);
+      status(`Aperçu Drive prêt pour ${currentEvent?.name||eventSlug}.`);
+    }catch(e){
+      if(preview) preview.textContent=`Aperçu impossible : ${e.message}`;
+      status(`Aperçu Drive impossible : ${e.message}`);
+    }
+  });
+  const dsave=$('#drive-save'); if(dsave) dsave.addEventListener('click',async()=>{
+    const eventSlug=currentSlug;
+    if(!eventSlug) return status('Choisissez d’abord un événement avec le bouton Gérer.');
+    if(!lastDriveRound) return status('Générez d’abord un aperçu Drive.');
+    try{
+      await adminApi(`/api/admin/events/${encodeURIComponent(eventSlug)}/circuits`,{method:'POST',body:JSON.stringify(lastDriveRound)});
+      status('Fiche circuit enregistrée'); lastDriveRound=null;
+      await loadAdminEvent(eventSlug); renderAdmin(); showAdminTab('circuits');
+    }catch(e){ status(`Enregistrement impossible : ${e.message}`); }
+  });
 }
 document.addEventListener('DOMContentLoaded',init);
 
@@ -92,7 +111,10 @@ document.addEventListener('DOMContentLoaded',init);
 function token(){ return localStorage.getItem('gdsp-token')||''; }
 function status(msg){ const el=$('#admin-status'); if(el) el.textContent=msg; }
 async function adminApi(path, opts={}){ const r=await fetch(path,{...opts,headers:{'Content-Type':'application/json',Authorization:`Bearer ${token()}`,...(opts.headers||{})}});
-  if(!r.ok) throw new Error(`HTTP ${r.status}`); return r.status===204?null:r.json(); }
+  if(r.status===204) return null;
+  const data=await r.json().catch(()=>null);
+  if(!r.ok) throw new Error(data?.error||`HTTP ${r.status}`);
+  return data; }
 function allDrivers(){ const m=new Map(); for(const s of currentEvent?.data.sessions||[]) for(const r of s.results||[]) m.set(r.driverId,(currentEvent.data.manualDrivers||{})[r.driverId]||r.driverName); return m; }
 function showAdminTab(name){
   $$('#atabs button').forEach(b=>b.classList.toggle('active',b.dataset.atab===name));
@@ -190,7 +212,7 @@ async function renderEventManagement(){
         <button id="media-save">Enregistrer les images</button></div>`:''}</article>`).join('')||'<p>Aucun événement.</p>');
   $$('[data-archive]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.archive}/kind`,{method:'PUT',body:JSON.stringify({kind:'archive'})}); status('Événement archivé'); await renderEventManagement(); });
   $$('[data-reopen]').forEach(b=>b.onclick=async()=>{ await adminApi(`/api/admin/events/${b.dataset.reopen}/kind`,{method:'PUT',body:JSON.stringify({reopen:true})}); status('Événement rouvert'); await renderEventManagement(); });
-  $$('[data-manage]').forEach(b=>b.onclick=async()=>{ await loadAdminEvent(b.dataset.manage); renderAdmin(); status(`Gestion de ${currentEvent.name}`); });
+  $$('[data-manage]').forEach(b=>b.onclick=async()=>{ await loadAdminEvent(b.dataset.manage); lastDriveRound=null; if($('#drive-preview')) $('#drive-preview').textContent=''; renderAdmin(); status(`Gestion de ${currentEvent.name}`); });
   $('#media-save')?.addEventListener('click',async()=>{
     const read=file=>new Promise((resolve,reject)=>{ const r=new FileReader(); r.onload=()=>resolve(r.result); r.onerror=reject; r.readAsDataURL(file); });
     const body={}; if($('#event-poster').files[0]) body.posterImage=await read($('#event-poster').files[0]);
